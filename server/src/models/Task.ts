@@ -11,6 +11,7 @@ export interface ITask extends Document {
   status: "Draft" | "Open" | "Closed" | "In Progress" | "Under Review" | "Assigned" | "Completed";
   employee: string;
   assignedEmployees: string[];
+  assignedEmployeeEmails: string[];
   slots: number;
   paymentType: "FIXED" | "PER_UNIT";
   unitRate?: number;
@@ -40,6 +41,7 @@ const TaskSchema = new Schema<ITask>(
     },
     employee: { type: String, default: "Unassigned" },
     assignedEmployees: { type: [String], default: [] },
+    assignedEmployeeEmails: { type: [String], default: [] },
     slots: { type: Number, default: 1 },
     paymentType: { type: String, enum: ["FIXED", "PER_UNIT"], default: "FIXED" },
     unitRate: { type: Number },

@@ -62,7 +62,13 @@ export const api = {
     updateStatus: (id: number, status: string, token?: string) =>
       fetchWithAuth(`/applications/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }, token),
   },
+  assignments: {
+    list: (token?: string) => fetchWithAuth("/assignments", { method: "GET" }, token),
+    create: (data: any, token?: string) =>
+      fetchWithAuth("/assignments", { method: "POST", body: JSON.stringify(data) }, token),
+  },
   submissions: {
+    list: (token?: string) => fetchWithAuth("/submissions", { method: "GET" }, token),
     create: (submissionData: any, token?: string) =>
       fetchWithAuth("/submissions", { method: "POST", body: JSON.stringify(submissionData) }, token),
     approve: (id: number, approvalData: any, token?: string) =>

@@ -1,20 +1,88 @@
 import React from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Clock } from "lucide-react";
 import { useWorkforce } from "../../context/WorkforceContext";
+import { getTimeRemaining } from "./EmployeeMyTasks";
+import type { AssignmentItem } from "../../types";
 
 export function EmployeeDashboard() {
   const {
     currentEmployee,
     taskList,
+    applications,
     assignments,
     submissions,
     ledger,
     setActive,
   } = useWorkforce();
 
-  const myAssignments = assignments.filter(
-    (a) => a.email === currentEmployee.email
-  );
+  const userEmail = (currentEmployee?.email || "").toLowerCase().trim();
+  const userName = (currentEmployee?.name || "").toLowerCase().trim();
+
+  const assignedMap = new Map<string, AssignmentItem>();
+
+  assignments.forEach((a) => {
+    const aEmail = (a.email || "").toLowerCase().trim();
+    const aName = (a.employee || "").toLowerCase().trim();
+    if (aEmail === userEmail || (userEmail && aEmail.includes(userEmail)) || (userName && aName === userName)) {
+      assignedMap.set(a.taskTitle, a);
+    }
+  });
+
+  applications
+    .filter(
+      (app) =>
+        app.status === "Accepted" &&
+        ((app.email && app.email.toLowerCase().trim() === userEmail) ||
+          (app.employee && app.employee.toLowerCase().trim() === userName))
+    )
+    .forEach((app) => {
+      if (!assignedMap.has(app.taskTitle)) {
+        const targetTask = taskList.find((t) => t.title === app.taskTitle);
+        assignedMap.set(app.taskTitle, {
+          id: app.id,
+          applicationId: app.id,
+          employee: app.employee || currentEmployee.name,
+          email: app.email || currentEmployee.email,
+          taskTitle: app.taskTitle,
+          assignedOn: app.appliedOn || new Date().toISOString().slice(0, 10),
+          deadline: targetTask?.deadline || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+          payment: targetTask?.payment || 0,
+          status: "Assigned",
+          paymentType: targetTask?.paymentType,
+          unitRate: targetTask?.unitRate,
+          unitName: targetTask?.unitName,
+          targetQuantity: targetTask?.targetQuantity,
+        });
+      }
+    });
+
+  taskList.forEach((t) => {
+    const isAssigned =
+      t.assignedEmployeeEmails?.some((em: string) => em.toLowerCase().trim() === userEmail) ||
+      t.assignedEmployees?.some(
+        (name: string) => name.toLowerCase().trim() === userName || name.toLowerCase().trim() === userEmail
+      );
+
+    if (isAssigned && !assignedMap.has(t.title)) {
+      assignedMap.set(t.title, {
+        id: t.id,
+        applicationId: t.id,
+        employee: currentEmployee.name,
+        email: currentEmployee.email,
+        taskTitle: t.title,
+        assignedOn: new Date().toISOString().slice(0, 10),
+        deadline: t.deadline,
+        payment: t.payment,
+        status: "Assigned",
+        paymentType: t.paymentType,
+        unitRate: t.unitRate,
+        unitName: t.unitName,
+        targetQuantity: t.targetQuantity,
+      });
+    }
+  });
+
+  const myAssignments = Array.from(assignedMap.values());
   const mySubmissions = submissions.filter(
     (s) => s.email === currentEmployee.email
   );
@@ -125,29 +193,51 @@ export function EmployeeDashboard() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {myAssignments.map((task) => (
-              <div
-                key={task.id}
-                className="flex flex-col justify-between gap-3 rounded-lg border border-slate-100 p-4 sm:flex-row sm:items-center"
-              >
-                <div>
-                  <h4 className="font-semibold text-slate-800">
-                    {task.taskTitle}
-                  </h4>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Deadline: {task.deadline} · Payment: ৳
-                    {task.payment.toLocaleString("en-BD")}
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setActive("My Tasks")}
-                  className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+            {myAssignments.map((task) => {
+              const timeInfo = getTimeRemaining(task.deadline);
+              return (
+                <div
+                  key={task.id || task.taskTitle}
+                  className="flex flex-col justify-between gap-3 rounded-lg border border-slate-100 p-4 sm:flex-row sm:items-center hover:border-slate-200 transition"
                 >
-                  Submit Work
-                </button>
-              </div>
-            ))}
+                  <div>
+                    <h4 className="font-semibold text-slate-800">
+                      {task.taskTitle}
+                    </h4>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="font-bold text-slate-900">
+                        ৳{task.payment.toLocaleString("en-BD")}
+                      </span>
+                      <span className="text-slate-300">•</span>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold ${
+                          timeInfo.urgency === "overdue"
+                            ? "bg-red-100 text-red-800"
+                            : timeInfo.urgency === "urgent"
+                            ? "bg-amber-100 text-amber-800"
+                            : timeInfo.urgency === "moderate"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        <Clock size={11} />
+                        {timeInfo.text}
+                      </span>
+                      <span className="text-slate-400">
+                        (Due: {timeInfo.formattedDeadline})
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setActive("My Tasks")}
+                    className="rounded-lg bg-blue-50 px-3.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 shrink-0"
+                  >
+                    Submit Work
+                  </button>
+                </div>
+              );
+            })}
 
             {myAssignments.length === 0 && (
               <p className="py-6 text-center text-sm text-slate-400">

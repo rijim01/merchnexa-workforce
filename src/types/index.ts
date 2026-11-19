@@ -33,6 +33,7 @@ export interface TaskItem {
   status: TaskStatus;
   employee: string; // Primary or legacy label
   assignedEmployees?: string[]; // Multiple approved employees
+  assignedEmployeeEmails?: string[]; // Multiple approved employee emails
   slots?: number; // Total workers needed (e.g. 1, 2, 5)
   paymentType?: TaskPaymentType; // "FIXED" or "PER_UNIT" (Bulky work)
   unitRate?: number; // Rate per item (e.g. ৳10 per Gmail account)

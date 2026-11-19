@@ -11,7 +11,7 @@ import { ledgerService } from "../services/ledgerService.js";
 export const submissionRouter = Router();
 
 // Get all submissions
-submissionRouter.get("/", authMiddleware, async (req, res) => {
+submissionRouter.get("/", async (req, res) => {
   try {
     if (!isDbConnected()) {
       await connectDB();

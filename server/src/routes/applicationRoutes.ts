@@ -3,6 +3,7 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 import { requireAdmin } from "../middleware/rbacMiddleware.js";
 import { ApplicationModel } from "../models/Application.js";
 import { TaskModel } from "../models/Task.js";
+import { AssignmentModel } from "../models/Assignment.js";
 import { AuditLogModel } from "../models/AuditLog.js";
 import { connectDB, isDbConnected } from "../config/db.js";
 import { sheetsRepo } from "../repositories/sheetsRepo.js";
@@ -138,23 +139,51 @@ applicationRouter.patch("/:id/status", authMiddleware, requireAdmin, async (req:
         return res.status(404).json({ error: "Application not found" });
       }
 
-      // If accepted, add worker to the task's assignedEmployees list in MongoDB Atlas
+      // If accepted, add worker to the task's assignedEmployees list and create Assignment in MongoDB Atlas
       if (status === "Accepted") {
         const task = await TaskModel.findOne({ title: app.taskTitle });
         if (task) {
           const currentAssigned = task.assignedEmployees || [];
-          if (!currentAssigned.includes(app.employee)) {
-            const updatedAssigned = [...currentAssigned, app.employee];
-            task.assignedEmployees = updatedAssigned;
-            task.status = "In Progress";
-            task.employee = updatedAssigned.length === 1
-              ? updatedAssigned[0]
-              : `${updatedAssigned[0]} (+${updatedAssigned.length - 1} more)`;
-            await task.save();
+          const currentEmails = task.assignedEmployeeEmails || [];
 
-            console.log(`✅ [MongoDB Atlas] Worker ${app.employee} assigned to task "${task.title}". Active staff: ${updatedAssigned.length}/${task.slots}`);
+          if (!currentAssigned.includes(app.employee)) {
+            currentAssigned.push(app.employee);
           }
+          if (app.email && !currentEmails.includes(app.email.toLowerCase())) {
+            currentEmails.push(app.email.toLowerCase());
+          }
+
+          task.assignedEmployees = currentAssigned;
+          task.assignedEmployeeEmails = currentEmails;
+          task.status = "In Progress";
+          task.employee = currentAssigned.length === 1
+            ? currentAssigned[0]
+            : `${currentAssigned[0]} (+${currentAssigned.length - 1} more)`;
+          await task.save();
+
+          console.log(`✅ [MongoDB Atlas] Worker ${app.employee} assigned to task "${task.title}". Active staff: ${currentAssigned.length}/${task.slots}`);
         }
+
+        // Create or update Assignment record in MongoDB Atlas
+        await AssignmentModel.findOneAndUpdate(
+          { applicationId: app.id },
+          {
+            id: app.id,
+            applicationId: app.id,
+            employee: app.employee,
+            email: (app.email || "").toLowerCase().trim(),
+            taskTitle: app.taskTitle,
+            assignedOn: app.appliedOn || new Date().toISOString().slice(0, 10),
+            deadline: task?.deadline || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+            payment: task?.payment || 0,
+            status: "Assigned",
+            paymentType: task?.paymentType || "FIXED",
+            unitRate: task?.unitRate,
+            unitName: task?.unitName,
+            targetQuantity: task?.targetQuantity,
+          },
+          { upsert: true, new: true }
+        );
       }
 
       await AuditLogModel.create({

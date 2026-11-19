@@ -19,19 +19,25 @@ export function ApplicationsPage() {
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
 
-  // Live fetch applications from MongoDB on mount
+  // Live fetch applications and assignments from MongoDB on mount
   useEffect(() => {
-    async function fetchApps() {
+    async function fetchAppsAndAssignments() {
       try {
-        const res = await api.applications.list(authToken || undefined);
-        if (res && Array.isArray(res.applications)) {
-          setApplications(res.applications);
+        const [appRes, assignRes] = await Promise.allSettled([
+          api.applications.list(authToken || undefined),
+          api.assignments.list(authToken || undefined),
+        ]);
+        if (appRes.status === "fulfilled" && Array.isArray(appRes.value?.applications)) {
+          setApplications(appRes.value.applications);
+        }
+        if (assignRes.status === "fulfilled" && Array.isArray(assignRes.value?.assignments)) {
+          setAssignments(assignRes.value.assignments);
         }
       } catch (err) {
-        console.warn("Could not fetch live applications:", err);
+        console.warn("Could not fetch live applications or assignments:", err);
       }
     }
-    fetchApps();
+    fetchAppsAndAssignments();
   }, [authToken]);
 
   const updateStatus = async (id: number, status: ApplicationStatus) => {
@@ -44,53 +50,33 @@ export function ApplicationsPage() {
     try {
       await api.applications.updateStatus(id, status, authToken || undefined);
       showToast(`Application marked as ${status} in MongoDB!`, "success");
+      // Refresh assignments
+      const res = await api.assignments.list(authToken || undefined);
+      if (res?.assignments) {
+        setAssignments(res.assignments);
+      }
     } catch (err: any) {
       console.error("Failed to update application on server:", err);
       showToast(`Status updated locally (Server sync: ${err.message})`, "warning");
     }
   };
 
-  const assignApplication = (application: ApplicationItem) => {
-    const alreadyAssigned = assignments.some(
-      (assignment) => assignment.applicationId === application.id
+  const approveAndAssignApplication = async (application: ApplicationItem) => {
+    // 1. Optimistically update application
+    setApplications((current) =>
+      current.map((app) =>
+        app.id === application.id ? { ...app, status: "Accepted" } : app
+      )
     );
 
-    if (alreadyAssigned) {
-      showToast("This application has already been assigned.", "warning");
-      return;
-    }
-
-    if (application.status !== "Accepted") {
-      showToast("Only accepted applications can be assigned.", "warning");
-      return;
-    }
-
-    const taskDetails: Record<string, { payment: number; deadline: string }> = {
-      "Social Media Content Creation": {
-        payment: 1500,
-        deadline: "2026-11-21",
-      },
-      "Product Research & Analysis": {
-        payment: 2000,
-        deadline: "2026-11-22",
-      },
-      "Facebook Ad Creative Design": {
-        payment: 1200,
-        deadline: "2026-11-24",
-      },
-    };
-
-    const details = taskDetails[application.taskTitle] || {
-      payment: 1500,
-      deadline: "2026-11-30",
-    };
-
+    // 2. Find target task
     const targetTask = taskList.find((t) => t.title === application.taskTitle);
-    const payment = targetTask?.payment || details.payment;
-    const deadline = targetTask?.deadline || details.deadline;
+    const deadline = targetTask?.deadline || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const payment = targetTask?.payment || 1500;
 
+    // 3. Optimistically create assignment in state
     const newAssignment: AssignmentItem = {
-      id: Date.now(),
+      id: application.id,
       applicationId: application.id,
       employee: application.employee,
       email: application.email,
@@ -105,9 +91,14 @@ export function ApplicationsPage() {
       targetQuantity: targetTask?.targetQuantity,
     };
 
-    setAssignments((current) => [...current, newAssignment]);
+    setAssignments((current) => {
+      const exists = current.some(
+        (a) => a.id === application.id || (a.email === application.email && a.taskTitle === application.taskTitle)
+      );
+      return exists ? current : [newAssignment, ...current];
+    });
 
-    // Add employee to task's multi-worker assigned list
+    // 4. Update task in local state
     setTaskList((prev) =>
       prev.map((t) => {
         if (t.title === application.taskTitle) {
@@ -130,7 +121,19 @@ export function ApplicationsPage() {
       })
     );
 
-    showToast(`✓ ${application.employee} approved and assigned to "${application.taskTitle}"!`, "success");
+    // 5. Sync to server
+    try {
+      await api.applications.updateStatus(application.id, "Accepted", authToken || undefined);
+      showToast(`✓ ${application.employee} approved & assigned to "${application.taskTitle}"!`, "success");
+      // Refresh assignments from MongoDB
+      const res = await api.assignments.list(authToken || undefined);
+      if (res?.assignments) {
+        setAssignments(res.assignments);
+      }
+    } catch (err: any) {
+      console.error("Failed to update application on server:", err);
+      showToast(`Status updated locally (Server sync: ${err.message})`, "warning");
+    }
   };
 
   const filteredApplications = applications.filter((application) => {
@@ -287,10 +290,10 @@ export function ApplicationsPage() {
               {application.status === "Pending" && (
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => updateStatus(application.id, "Accepted")}
-                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                    onClick={() => approveAndAssignApplication(application)}
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 shadow-sm"
                   >
-                    Accept Application
+                    ✓ Approve & Assign Task
                   </button>
 
                   <button
@@ -304,21 +307,10 @@ export function ApplicationsPage() {
 
               {application.status === "Accepted" && (
                 <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-sm font-medium text-emerald-700">
-                    Application accepted.
-                  </p>
-
-                  <button
-                    onClick={() => assignApplication(application)}
-                    disabled={assignments.some(
-                      (a) => a.applicationId === application.id
-                    )}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {assignments.some((a) => a.applicationId === application.id)
-                      ? "Already Assigned"
-                      : "Assign Task"}
-                  </button>
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-800 border border-emerald-200">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Approved & Assigned to Task
+                  </span>
                 </div>
               )}
             </div>
