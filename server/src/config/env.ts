@@ -19,10 +19,23 @@ function formatPrivateKey(key?: string): string {
   return formatted.trim();
 }
 
+function cleanMongoUri(uri?: string): string {
+  if (!uri) return "";
+  let clean = uri.trim();
+  // Strip surrounding quotes if copied with quotes
+  if (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'"))
+  ) {
+    clean = clean.slice(1, -1);
+  }
+  return clean.trim();
+}
+
 export const config = {
   port: process.env.PORT || 5000,
   adminEmail: (process.env.ADMIN_EMAIL || "jim@merchnexa.com").toLowerCase(),
-  mongoUri: process.env.MONGODB_URI || "",
+  mongoUri: cleanMongoUri(process.env.MONGODB_URI),
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID || "",
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "",

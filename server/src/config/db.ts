@@ -6,13 +6,14 @@ export async function connectDB(): Promise<boolean> {
     return true;
   }
 
-  if (!config.mongoUri) {
-    console.warn("⚠️  [MongoDB Atlas] MONGODB_URI is not set in .env.");
+  const uri = (config.mongoUri || "").trim().replace(/^["']|["']$/g, "");
+  if (!uri) {
+    console.warn("⚠️  [MongoDB Atlas] MONGODB_URI is not set in environment.");
     return false;
   }
 
   try {
-    const conn = await mongoose.connect(config.mongoUri, {
+    const conn = await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 5000,
     });
     console.log(`✅ [MongoDB Atlas] Connected to database: "${conn.connection.name}" at ${conn.connection.host}`);
