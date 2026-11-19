@@ -69,9 +69,16 @@ export function EmployeeAvailableTasks() {
 
         <div className="mt-6 space-y-4">
           {openTasks.map((task) => {
+            const taskApps = applications.filter((a) => a.taskTitle === task.title);
+            const applicantCount = taskApps.length;
+            const assignedCount = (task.assignedEmployees || []).length;
+            const totalSlots = task.slots || 1;
+            const remainingSlots = Math.max(0, totalSlots - assignedCount);
+
             const existingApp = applications.find(
               (a) =>
-                a.email === currentEmployee.email && a.taskTitle === task.title
+                a.email.toLowerCase() === currentEmployee.email.toLowerCase() &&
+                a.taskTitle === task.title
             );
 
             return (
@@ -103,15 +110,34 @@ export function EmployeeAvailableTasks() {
                       ))}
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-400">
+                    <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                       <span>
-                        <CalendarDays size={13} className="mr-1 inline" />
-                        Deadline: {task.deadline}
+                        <CalendarDays size={13} className="mr-1 inline text-slate-400" />
+                        Deadline: <b className="text-slate-700">{task.deadline}</b>
                       </span>
 
-                      <span className="flex items-center gap-1 text-slate-500">
-                        <Users size={13} className="text-blue-600 inline" />
-                        <span>Positions: {(task.assignedEmployees || []).length} / {task.slots || 1} filled</span>
+                      {/* How many employees have applied */}
+                      <span className="flex items-center gap-1.5 rounded-md bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-700 border border-indigo-100">
+                        <Users size={13} className="text-indigo-600" />
+                        <span>
+                          {applicantCount === 0
+                            ? "Be the first to apply"
+                            : `${applicantCount} ${applicantCount === 1 ? "employee applied" : "employees applied"}`}
+                        </span>
+                      </span>
+
+                      {/* Staff Capacity & Remaining Slots */}
+                      <span className="flex items-center gap-1 rounded-md bg-slate-100 px-2.5 py-1 text-slate-700">
+                        <span>Staff Needed: <b>{assignedCount}/{totalSlots}</b></span>
+                        {remainingSlots > 0 ? (
+                          <span className="font-semibold text-emerald-700 ml-1">
+                            ({remainingSlots} {remainingSlots === 1 ? "spot left" : "spots left"})
+                          </span>
+                        ) : (
+                          <span className="font-bold text-amber-600 ml-1">
+                            (Full)
+                          </span>
+                        )}
                       </span>
 
                       {task.documentUrl && (
@@ -119,7 +145,7 @@ export function EmployeeAvailableTasks() {
                           href={task.documentUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-blue-600 hover:underline"
+                          className="text-blue-600 hover:underline flex items-center gap-0.5"
                         >
                           Reference Brief{" "}
                           <ExternalLink size={11} className="ml-0.5 inline" />
@@ -156,15 +182,15 @@ export function EmployeeAvailableTasks() {
                       <span
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
                           existingApp.status === "Pending"
-                            ? "bg-amber-50 text-amber-700"
+                            ? "bg-amber-100 text-amber-800 border border-amber-200"
                             : existingApp.status === "Accepted"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-red-50 text-red-700"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : "bg-red-100 text-red-800 border border-red-200"
                         }`}
                       >
                         Applied ({existingApp.status})
                       </span>
-                    ) : (
+                    ) : remainingSlots > 0 ? (
                       <button
                         onClick={() => {
                           setApplyingTaskId(task.id);
@@ -173,6 +199,12 @@ export function EmployeeAvailableTasks() {
                         className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
                       >
                         Apply for Task
+                      </button>
+                    ) : (
+                      <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-400">
+                        Slots Filled
+                      </span>
+                    )}
                       </button>
                     )}
                   </div>

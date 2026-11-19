@@ -6,7 +6,7 @@ import { useWorkforce } from "../../context/WorkforceContext";
 import { api } from "../../services/api";
 
 export function TasksPage() {
-  const { taskList, setTaskList, authToken, showToast } = useWorkforce();
+  const { taskList, setTaskList, applications, authToken, showToast } = useWorkforce();
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("All");
 
@@ -611,14 +611,21 @@ export function TasksPage() {
                       {task.deadline}
                     </span>
 
+                    <span className="flex items-center gap-1.5 rounded-md bg-indigo-50 px-2 py-0.5 text-indigo-700 font-semibold border border-indigo-100">
+                      <Users size={12} className="text-indigo-600" />
+                      <span>
+                        <b>{applications.filter((a) => a.taskTitle === task.title).length}</b> applied
+                      </span>
+                    </span>
+
                     <span className="flex items-center gap-1">
-                      <Users size={13} className="inline text-blue-600" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
                       {task.assignedEmployees && task.assignedEmployees.length > 0 ? (
                         <span className="font-semibold text-slate-700">
                           Assigned: {task.assignedEmployees.join(", ")} ({task.assignedEmployees.length}/{task.slots || 1} staff)
                         </span>
                       ) : (
-                        <span>Open for applicants ({task.slots || 1} staff needed)</span>
+                        <span>Capacity: 0/{task.slots || 1} assigned ({task.slots || 1} staff needed)</span>
                       )}
                     </span>
 
