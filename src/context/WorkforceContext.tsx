@@ -180,6 +180,21 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Sync real-time tasks from MongoDB Atlas
+  useEffect(() => {
+    async function loadBackendData() {
+      try {
+        const taskData = await api.tasks.list(authToken || undefined);
+        if (taskData && Array.isArray(taskData.tasks) && taskData.tasks.length > 0) {
+          setTaskList(taskData.tasks);
+        }
+      } catch {
+        // Local mode fallback
+      }
+    }
+    loadBackendData();
+  }, [authToken]);
+
   const handleEmailLogin = async (email: string, pass: string) => {
     const configuredAdmin = (import.meta.env.VITE_ADMIN_EMAIL || "jim@merchnexa.com").toLowerCase();
     const cleanEmail = email.toLowerCase().trim();

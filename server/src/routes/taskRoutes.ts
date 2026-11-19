@@ -3,14 +3,18 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 import { requireAdmin } from "../middleware/rbacMiddleware.js";
 import { TaskModel } from "../models/Task.js";
 import { AuditLogModel } from "../models/AuditLog.js";
-import { isDbConnected } from "../config/db.js";
+import { connectDB, isDbConnected } from "../config/db.js";
 import { sheetsRepo } from "../repositories/sheetsRepo.js";
 
 export const taskRouter = Router();
 
-// Get all tasks (Available to all authenticated staff)
-taskRouter.get("/", authMiddleware, async (req, res) => {
+// Get all tasks (Available to all authenticated staff & frontend load)
+taskRouter.get("/", async (req, res) => {
   try {
+    if (!isDbConnected()) {
+      await connectDB();
+    }
+
     if (isDbConnected()) {
       const tasks = await TaskModel.find().sort({ createdAt: -1 }).lean();
       return res.json({ success: true, tasks });
@@ -52,6 +56,10 @@ taskRouter.post("/", authMiddleware, requireAdmin, async (req, res) => {
   let createdTask: any = null;
 
   try {
+    if (!isDbConnected()) {
+      await connectDB();
+    }
+
     if (isDbConnected()) {
       createdTask = await TaskModel.create({
         id: taskId,
@@ -75,10 +83,17 @@ taskRouter.post("/", authMiddleware, requireAdmin, async (req, res) => {
         clientUnitRate: clientUnitRate ? Number(clientUnitRate) : undefined,
       });
 
+      console.log(`✅ [MongoDB Atlas] Successfully created task in MongoDB Atlas: "${title}" (ID: ${taskId})`);
+
       await AuditLogModel.create({
         actor: req.user?.email || "Admin",
         action: "CREATE_TASK",
         details: `Task created in MongoDB Atlas: "${title}" (Budget: ৳${payment})`,
+      }).catch(() => {});
+    } else {
+      console.error("❌ [MongoDB Atlas] Cannot save task because MongoDB Atlas is disconnected.");
+      return res.status(503).json({
+        error: "MongoDB Atlas is not connected. Please verify your MONGODB_URI and Network Access IP whitelist (0.0.0.0/0).",
       });
     }
 

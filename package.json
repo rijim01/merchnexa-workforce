@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "build:all": "npm run build && cd server && npm install && npm run build",
-    "start": "cd server && npm start"
+    "start": "node server/dist/index.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.5",

@@ -1,15 +1,13 @@
 import mongoose from "mongoose";
 import { config } from "./env.js";
 
-let isConnected = false;
-
 export async function connectDB(): Promise<boolean> {
-  if (isConnected) {
+  if (mongoose.connection.readyState === 1) {
     return true;
   }
 
   if (!config.mongoUri) {
-    console.warn("⚠️  [MongoDB Atlas] MONGODB_URI is not set in .env. Running in memory / local mode.");
+    console.warn("⚠️  [MongoDB Atlas] MONGODB_URI is not set in .env.");
     return false;
   }
 
@@ -17,8 +15,7 @@ export async function connectDB(): Promise<boolean> {
     const conn = await mongoose.connect(config.mongoUri, {
       serverSelectionTimeoutMS: 5000,
     });
-    isConnected = true;
-    console.log(`✅ [MongoDB Atlas] Connected to database: ${conn.connection.name} at ${conn.connection.host}`);
+    console.log(`✅ [MongoDB Atlas] Connected to database: "${conn.connection.name}" at ${conn.connection.host}`);
     return true;
   } catch (error: any) {
     console.error("❌ [MongoDB Atlas] Connection failed:", error.message);
@@ -27,5 +24,5 @@ export async function connectDB(): Promise<boolean> {
 }
 
 export function isDbConnected(): boolean {
-  return isConnected && mongoose.connection.readyState === 1;
+  return mongoose.connection.readyState === 1;
 }

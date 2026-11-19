@@ -99,13 +99,13 @@ export function ReportsPage() {
         csvContent += `"${idx + 1}","${w.name}","${w.email}","${w.role}","${w.completedCount}","${w.avgRating} / 10","${w.rankScore}","${w.earned}","${w.paid}","${w.balance}"\n`;
       });
     } else if (type === "profitability") {
-      csvContent += "Task Title,Client,Pricing Model,Client Billing (BDT),Worker Cost (BDT),Net Profit (BDT),Margin (%),Status\n";
+      csvContent += "Task Title,Client,Pricing Model,Allowed Workers,Payment per Worker (BDT),Client Billing (BDT),Total Worker Cost (BDT),Net Profit (BDT),Margin (%),Status\n";
       taskList.forEach((t) => {
         const clientRev = t.clientAmount || (t.clientUnitRate && t.targetQuantity ? t.clientUnitRate * t.targetQuantity : 0);
-        const workerCost = t.payment || 0;
+        const workerCost = t.paymentType === "PER_UNIT" ? (t.payment || 0) : ((t.payment || 0) * (t.slots || 1));
         const profit = clientRev > 0 ? clientRev - workerCost : 0;
         const margin = clientRev > 0 ? ((profit / clientRev) * 100).toFixed(1) : "0";
-        csvContent += `"${t.title}","${t.clientName || 'Direct Client'}","${t.paymentType || 'FIXED'}","${clientRev}","${workerCost}","${profit}","${margin}%","${t.status}"\n`;
+        csvContent += `"${t.title}","${t.clientName || 'Direct Client'}","${t.paymentType || 'FIXED'}","${t.slots || 1}","${t.payment}","${clientRev}","${workerCost}","${profit}","${margin}%","${t.status}"\n`;
       });
     }
 
@@ -485,7 +485,7 @@ export function ReportsPage() {
         <div className="divide-y divide-slate-100 sm:hidden">
           {taskList.map((task) => {
             const clientRev = task.clientAmount || (task.clientUnitRate && task.targetQuantity ? task.clientUnitRate * task.targetQuantity : 0);
-            const workerCost = task.payment || 0;
+            const workerCost = task.paymentType === "PER_UNIT" ? (task.payment || 0) : ((task.payment || 0) * (task.slots || 1));
             const netProfit = clientRev > 0 ? clientRev - workerCost : 0;
             const margin = clientRev > 0 ? ((netProfit / clientRev) * 100).toFixed(1) : "0";
 
@@ -542,7 +542,7 @@ export function ReportsPage() {
             <tbody className="divide-y divide-slate-100">
               {taskList.map((task) => {
                 const clientRev = task.clientAmount || (task.clientUnitRate && task.targetQuantity ? task.clientUnitRate * task.targetQuantity : 0);
-                const workerCost = task.payment || 0;
+                const workerCost = task.paymentType === "PER_UNIT" ? (task.payment || 0) : ((task.payment || 0) * (task.slots || 1));
                 const netProfit = clientRev > 0 ? clientRev - workerCost : 0;
                 const margin = clientRev > 0 ? ((netProfit / clientRev) * 100).toFixed(1) : "0";
 
@@ -568,7 +568,7 @@ export function ReportsPage() {
                         </span>
                       ) : (
                         <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                          Fixed Project
+                          Fixed ({task.slots || 1} staff)
                         </span>
                       )}
                     </td>
@@ -577,6 +577,11 @@ export function ReportsPage() {
                     </td>
                     <td className="px-4 py-3.5 text-right font-semibold text-rose-600">
                       ৳{workerCost.toLocaleString("en-BD")}
+                      {task.paymentType !== "PER_UNIT" && (task.slots || 1) > 1 && (
+                        <span className="text-[10px] text-slate-400 block">
+                          (৳{task.payment} × {task.slots})
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 text-right font-extrabold text-emerald-700">
                       +৳{netProfit.toLocaleString("en-BD")}
@@ -613,13 +618,15 @@ export function ReportsPage() {
                       .toLocaleString("en-BD")}
                   </td>
                   <td className="px-4 py-3 text-right text-rose-600">
-                    ৳{taskList.reduce((sum, t) => sum + (t.payment || 0), 0).toLocaleString("en-BD")}
+                    ৳{taskList
+                      .reduce((sum, t) => sum + (t.paymentType === "PER_UNIT" ? (t.payment || 0) : ((t.payment || 0) * (t.slots || 1))), 0)
+                      .toLocaleString("en-BD")}
                   </td>
                   <td className="px-4 py-3 text-right text-emerald-700 text-sm">
                     +৳{taskList
                       .reduce((sum, t) => {
                         const clientRev = t.clientAmount || (t.clientUnitRate && t.targetQuantity ? t.clientUnitRate * t.targetQuantity : 0);
-                        const workerCost = t.payment || 0;
+                        const workerCost = t.paymentType === "PER_UNIT" ? (t.payment || 0) : ((t.payment || 0) * (t.slots || 1));
                         return sum + (clientRev > 0 ? (clientRev - workerCost) : 0);
                       }, 0)
                       .toLocaleString("en-BD")}
@@ -627,7 +634,7 @@ export function ReportsPage() {
                   <td colSpan={2} className="px-4 py-3 text-center text-emerald-700">
                     {(() => {
                       const totalRev = taskList.reduce((sum, t) => sum + (t.clientAmount || (t.clientUnitRate && t.targetQuantity ? t.clientUnitRate * t.targetQuantity : 0)), 0);
-                      const totalCost = taskList.reduce((sum, t) => sum + (t.payment || 0), 0);
+                      const totalCost = taskList.reduce((sum, t) => sum + (t.paymentType === "PER_UNIT" ? (t.payment || 0) : ((t.payment || 0) * (t.slots || 1))), 0);
                       const totalNet = totalRev - totalCost;
                       return totalRev > 0 ? `${((totalNet / totalRev) * 100).toFixed(1)}% Avg Margin` : "-";
                     })()}

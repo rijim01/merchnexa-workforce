@@ -35,7 +35,12 @@ export function Overview() {
     return sum;
   }, 0);
 
-  const totalWorkerBudget = taskList.reduce((sum, t) => sum + (t.payment || 0), 0);
+  const totalWorkerBudget = taskList.reduce((sum, t) => {
+    if (t.paymentType === "PER_UNIT") {
+      return sum + (t.payment || 0);
+    }
+    return sum + ((t.payment || 0) * (t.slots || 1));
+  }, 0);
   const totalNetProfit = totalClientRevenue - totalWorkerBudget;
   const overallMargin = totalClientRevenue > 0 ? ((totalNetProfit / totalClientRevenue) * 100).toFixed(1) : "0";
 

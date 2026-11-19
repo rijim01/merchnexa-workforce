@@ -96,12 +96,19 @@ export function TasksPage() {
 
     setTaskList((previous) => [newTask, ...previous]);
     resetForm();
-    showToast(`Task "${newTask.title}" successfully created!`, "success");
 
     try {
-      await api.tasks.create(newTask, authToken || undefined);
-    } catch {
-      // Local state is already updated
+      const res = await api.tasks.create(newTask, authToken || undefined);
+      if (res && res.task) {
+        setTaskList((previous) => [res.task, ...previous.filter((t) => t.id !== newTask.id)]);
+      }
+      showToast(`✓ Task "${newTask.title}" saved to MongoDB Atlas!`, "success");
+    } catch (err: any) {
+      console.error("Task creation failed on backend:", err);
+      showToast(
+        `⚠ Could not save to MongoDB Atlas: ${err.message}. Make sure backend server is running!`,
+        "error"
+      );
     }
   };
 
@@ -149,12 +156,14 @@ export function TasksPage() {
             ৳{taskList
               .reduce((sum, t) => {
                 const clientRev = t.clientAmount || (t.clientUnitRate && t.targetQuantity ? t.clientUnitRate * t.targetQuantity : 0);
-                const workerCost = t.payment || (t.unitRate && t.targetQuantity ? t.unitRate * t.targetQuantity : 0);
+                const workerCost = t.paymentType === "PER_UNIT"
+                  ? (t.payment || (t.unitRate && t.targetQuantity ? t.unitRate * t.targetQuantity : 0))
+                  : ((t.payment || 0) * (t.slots || 1));
                 return sum + (clientRev > 0 ? (clientRev - workerCost) : 0);
               }, 0)
               .toLocaleString("en-BD")}
           </h3>
-          <p className="mt-1 text-xs text-emerald-600">Client billing minus workforce payouts</p>
+          <p className="mt-1 text-xs text-emerald-600">Client billing minus total workforce payouts</p>
         </div>
       </div>
 
@@ -329,16 +338,19 @@ export function TasksPage() {
               {paymentType === "FIXED" && (
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-                    Payment Amount (BDT) *
+                    Payment per Worker (BDT) *
                   </label>
                   <input
                     type="number"
                     min="1"
                     value={payment}
                     onChange={(e) => setPayment(e.target.value)}
-                    placeholder="1500"
+                    placeholder="150"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                   />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Amount each individual worker will receive upon task completion.
+                  </p>
                 </div>
               )}
 
@@ -351,14 +363,14 @@ export function TasksPage() {
                 <input
                   type="number"
                   min="1"
-                  max="30"
+                  max="50"
                   value={slots}
                   onChange={(e) => setSlots(e.target.value)}
                   placeholder="1"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  How many employees can work on this task simultaneously (e.g. 1, 2, 5+).
+                  Number of employees assigned to this task (e.g. 5 workers).
                 </p>
               </div>
 
@@ -422,32 +434,44 @@ export function TasksPage() {
                 </div>
 
                 {/* Live Profit Calculation Preview */}
-                {paymentType === "FIXED" && Number(clientAmount) > 0 && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between rounded-lg border border-indigo-200/60 bg-white/90 p-3 text-xs shadow-xs">
-                    <div>
-                      <span className="text-slate-500">Client Invoiced:</span>{" "}
-                      <b className="text-slate-900">৳{Number(clientAmount).toLocaleString("en-BD")}</b>
-                      <span className="mx-2 text-slate-300">•</span>
-                      <span className="text-slate-500">Workforce Cost:</span>{" "}
-                      <b className="text-rose-600">৳{(Number(payment) || 0).toLocaleString("en-BD")}</b>
+                {paymentType === "FIXED" && Number(clientAmount) > 0 && (() => {
+                  const workerCount = Math.max(1, Number(slots) || 1);
+                  const payPerWorker = Number(payment) || 0;
+                  const totalWorkerCost = payPerWorker * workerCount;
+                  const clientTotal = Number(clientAmount);
+                  const netProfit = clientTotal - totalWorkerCost;
+                  const margin = clientTotal > 0 ? ((netProfit / clientTotal) * 100).toFixed(1) : "0";
+
+                  return (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200/60 bg-white/90 p-3 text-xs shadow-xs">
+                      <div>
+                        <span className="text-slate-500">Client Invoiced:</span>{" "}
+                        <b className="text-slate-900">৳{clientTotal.toLocaleString("en-BD")}</b>
+                        <span className="mx-2 text-slate-300">•</span>
+                        <span className="text-slate-500">Total Workforce Cost:</span>{" "}
+                        <b className="text-rose-600">৳{totalWorkerCost.toLocaleString("en-BD")}</b>
+                        {workerCount > 1 && (
+                          <span className="text-[11px] text-slate-500 ml-1">
+                            (৳{payPerWorker.toLocaleString("en-BD")} × {workerCount} workers)
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className="text-slate-600">Net Profit:</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-md font-bold ${
+                            netProfit >= 0
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                              : "bg-rose-100 text-rose-800 border border-rose-200"
+                          }`}
+                        >
+                          {netProfit >= 0 ? `+৳${netProfit.toLocaleString("en-BD")}` : `-৳${Math.abs(netProfit).toLocaleString("en-BD")}`}{" "}
+                          ({margin}% Margin)
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 font-bold">
-                      <span className="text-slate-600">Net Profit:</span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-md font-bold ${
-                          Number(clientAmount) - (Number(payment) || 0) >= 0
-                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                            : "bg-rose-100 text-rose-800 border border-rose-200"
-                        }`}
-                      >
-                        +৳{(Number(clientAmount) - (Number(payment) || 0)).toLocaleString("en-BD")}{" "}
-                        ({Number(clientAmount) > 0
-                          ? (((Number(clientAmount) - (Number(payment) || 0)) / Number(clientAmount)) * 100).toFixed(1)
-                          : 0}% Margin)
-                      </span>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {paymentType === "PER_UNIT" && Number(clientUnitRate) > 0 && (
                   <div className="mt-3 flex flex-wrap items-center justify-between rounded-lg border border-indigo-200/60 bg-white/90 p-3 text-xs shadow-xs">
@@ -612,51 +636,60 @@ export function TasksPage() {
                   </div>
 
                   {/* Admin Profit & Client Billing Strip */}
-                  {(task.clientAmount || task.clientUnitRate) && (
-                    <div className="mt-3.5 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2 text-xs">
-                      {task.clientName && (
-                        <span className="font-bold text-indigo-950 flex items-center gap-1">
-                          <Building2 size={13} className="text-indigo-600 inline" />
-                          {task.clientName}
+                  {(task.clientAmount || task.clientUnitRate) && (() => {
+                    const workerCost = task.paymentType === "PER_UNIT"
+                      ? task.payment
+                      : (task.payment * (task.slots || 1));
+                    const clientRev = task.paymentType === "PER_UNIT"
+                      ? (task.clientAmount || ((task.clientUnitRate || 0) * (task.targetQuantity || 0)))
+                      : (task.clientAmount || 0);
+                    const netProfit = clientRev - workerCost;
+                    const margin = clientRev > 0 ? ((netProfit / clientRev) * 100).toFixed(0) : "0";
+
+                    return (
+                      <div className="mt-3.5 flex flex-wrap items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2 text-xs">
+                        {task.clientName && (
+                          <span className="font-bold text-indigo-950 flex items-center gap-1">
+                            <Building2 size={13} className="text-indigo-600 inline" />
+                            {task.clientName}
+                          </span>
+                        )}
+                        <span className="text-slate-600">
+                          Client Invoiced:{" "}
+                          <b className="text-slate-900">
+                            {task.paymentType === "PER_UNIT"
+                              ? `৳${task.clientUnitRate}/${task.unitName || "unit"} (৳${clientRev.toLocaleString("en-BD")})`
+                              : `৳${clientRev.toLocaleString("en-BD")}`}
+                          </b>
                         </span>
-                      )}
-                      <span className="text-slate-600">
-                        Client Invoiced:{" "}
-                        <b className="text-slate-900">
-                          {task.paymentType === "PER_UNIT"
-                            ? `৳${task.clientUnitRate}/${task.unitName || "unit"} (৳${(task.clientAmount || ((task.clientUnitRate || 0) * (task.targetQuantity || 0))).toLocaleString("en-BD")})`
-                            : `৳${(task.clientAmount || 0).toLocaleString("en-BD")}`}
-                        </b>
-                      </span>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-600">
-                        Worker Cost:{" "}
-                        <b className="text-slate-900">
-                          {task.paymentType === "PER_UNIT"
-                            ? `৳${task.unitRate}/${task.unitName || "unit"} (৳${task.payment.toLocaleString("en-BD")})`
-                            : `৳${task.payment.toLocaleString("en-BD")}`}
-                        </b>
-                      </span>
-                      <span className="text-slate-300">•</span>
-                      {task.paymentType === "PER_UNIT" ? (
-                        <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
-                          Net Profit: +৳{((task.clientUnitRate || 0) - (task.unitRate || 0))} / {task.unitName || "unit"}
-                          {" "}
-                          ({task.clientUnitRate ? ((((task.clientUnitRate - (task.unitRate || 0)) / task.clientUnitRate) * 100).toFixed(0)) : 0}% Margin)
-                          {task.targetQuantity && (
-                            <span className="font-semibold text-emerald-900 ml-1">
-                              • Max Pool Profit: ৳{(((task.clientUnitRate || 0) - (task.unitRate || 0)) * task.targetQuantity).toLocaleString("en-BD")}
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-600">
+                          Worker Cost:{" "}
+                          <b className="text-slate-900">
+                            {task.paymentType === "PER_UNIT"
+                              ? `৳${task.unitRate}/${task.unitName || "unit"} (৳${task.payment.toLocaleString("en-BD")})`
+                              : `৳${workerCost.toLocaleString("en-BD")}`}
+                          </b>
+                          {task.paymentType !== "PER_UNIT" && (task.slots || 1) > 1 && (
+                            <span className="text-[10px] text-slate-500 ml-1">
+                              (৳{task.payment} × {task.slots} workers)
                             </span>
                           )}
                         </span>
-                      ) : (
-                        <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
-                          Net Profit: +৳{((task.clientAmount || 0) - task.payment).toLocaleString("en-BD")}{" "}
-                          ({task.clientAmount ? ((((task.clientAmount - task.payment) / task.clientAmount) * 100).toFixed(0)) : 0}% Margin)
+                        <span className="text-slate-300">•</span>
+                        <span
+                          className={`font-bold px-2 py-0.5 rounded border ${
+                            netProfit >= 0
+                              ? "text-emerald-800 bg-emerald-100 border-emerald-200"
+                              : "text-rose-800 bg-rose-100 border-rose-200"
+                          }`}
+                        >
+                          Net Profit: {netProfit >= 0 ? `+৳${netProfit.toLocaleString("en-BD")}` : `-৳${Math.abs(netProfit).toLocaleString("en-BD")}`}{" "}
+                          ({margin}% Margin)
                         </span>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
@@ -676,7 +709,9 @@ export function TasksPage() {
                       <p className="text-lg font-bold text-slate-900">
                         ৳{task.payment.toLocaleString("en-BD")}
                       </p>
-                      <span className="text-[10px] uppercase font-semibold text-slate-400">Fixed Budget</span>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400">
+                        {(task.slots || 1) > 1 ? `per worker (${task.slots} slots = ৳${(task.payment * task.slots).toLocaleString("en-BD")})` : "Fixed Budget"}
+                      </span>
                     </>
                   )}
 
