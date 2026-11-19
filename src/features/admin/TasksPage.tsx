@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Plus, X, CalendarDays, ExternalLink, Save, Users, Building2, TrendingUp, CircleDollarSign } from "lucide-react";
+import { useState } from "react";
+import { Plus, X, CalendarDays, ExternalLink, Users, Building2 } from "lucide-react";
 import { StatusBadge } from "../../components/StatusBadge";
 import type { TaskItem, TaskStatus } from "../../types";
 import { useWorkforce } from "../../context/WorkforceContext";
@@ -710,7 +710,7 @@ export function TasksPage() {
                         ৳{task.payment.toLocaleString("en-BD")}
                       </p>
                       <span className="text-[10px] uppercase font-semibold text-slate-400">
-                        {(task.slots || 1) > 1 ? `per worker (${task.slots} slots = ৳${(task.payment * task.slots).toLocaleString("en-BD")})` : "Fixed Budget"}
+                        {(task.slots || 1) > 1 ? `per worker (${task.slots} slots = ৳${(task.payment * (task.slots || 1)).toLocaleString("en-BD")})` : "Fixed Budget"}
                       </span>
                     </>
                   )}

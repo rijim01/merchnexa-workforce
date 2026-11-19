@@ -41,7 +41,6 @@ export function AuthModal() {
   const hasUpper = /[A-Z]/.test(password);
   const hasNum = /[0-9]/.test(password);
   const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(password);
-  const isPasswordValid = hasMinLen && hasUpper && hasNum && hasSpecial;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
