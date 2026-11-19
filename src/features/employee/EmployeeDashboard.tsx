@@ -166,9 +166,12 @@ export function EmployeeDashboard() {
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-sm text-slate-500">Active Tasks</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">
-            {myAssignments.length}
+            {myAssignments.filter((a) => {
+              const sub = mySubmissions.find((s) => s.taskTitle === a.taskTitle);
+              return sub?.status !== "Approved" && a.status !== "Completed";
+            }).length}
           </p>
-          <p className="mt-1 text-xs text-slate-400">Assigned to you</p>
+          <p className="mt-1 text-xs text-slate-400">In progress</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -218,45 +221,75 @@ export function EmployeeDashboard() {
           <div className="mt-4 space-y-3">
             {myAssignments.map((task) => {
               const timeInfo = getTimeRemaining(task.deadline);
+              const sub = submissions.find(
+                (s) =>
+                  (s.email || "").toLowerCase().trim() === userEmail &&
+                  (s.taskTitle || "").toLowerCase().trim() === task.taskTitle.toLowerCase().trim()
+              );
+              const isCompleted = sub?.status === "Approved" || task.status === "Completed";
+
               return (
                 <div
                   key={task.id || task.taskTitle}
-                  className="flex flex-col justify-between gap-3 rounded-lg border border-slate-100 p-4 sm:flex-row sm:items-center hover:border-slate-200 transition"
+                  className={`flex flex-col justify-between gap-3 rounded-lg border p-4 sm:flex-row sm:items-center transition ${
+                    isCompleted
+                      ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300"
+                      : "border-slate-100 hover:border-slate-200"
+                  }`}
                 >
                   <div>
-                    <h4 className="font-semibold text-slate-800">
-                      {task.taskTitle}
-                    </h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold text-slate-800">
+                        {task.taskTitle}
+                      </h4>
+                      {isCompleted && (
+                        <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold border border-emerald-200">
+                          ✓ Completed
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                       <span className="font-bold text-slate-900">
-                        ৳{task.payment.toLocaleString("en-BD")}
+                        ৳{(sub?.payment || task.payment).toLocaleString("en-BD")}
                       </span>
                       <span className="text-slate-300">•</span>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold ${
-                          timeInfo.urgency === "overdue"
-                            ? "bg-red-100 text-red-800"
-                            : timeInfo.urgency === "urgent"
-                            ? "bg-amber-100 text-amber-800"
-                            : timeInfo.urgency === "moderate"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-emerald-100 text-emerald-800"
-                        }`}
-                      >
-                        <Clock size={11} />
-                        {timeInfo.text}
-                      </span>
-                      <span className="text-slate-400">
-                        (Due: {timeInfo.formattedDeadline})
-                      </span>
+                      {isCompleted ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                          ⭐ {sub?.rating ? `${sub.rating}/10` : "Rated"} • Payout Credited
+                        </span>
+                      ) : (
+                        <>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold ${
+                              timeInfo.urgency === "overdue"
+                                ? "bg-red-100 text-red-800"
+                                : timeInfo.urgency === "urgent"
+                                ? "bg-amber-100 text-amber-800"
+                                : timeInfo.urgency === "moderate"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            <Clock size={11} />
+                            {timeInfo.text}
+                          </span>
+                          <span className="text-slate-400">
+                            (Due: {timeInfo.formattedDeadline})
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
                   <button
                     onClick={() => setActive("My Tasks")}
-                    className="rounded-lg bg-blue-50 px-3.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 shrink-0"
+                    className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold shrink-0 transition ${
+                      isCompleted
+                        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                        : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    }`}
                   >
-                    Submit Work
+                    {isCompleted ? "View Completed Task" : "Submit Work"}
                   </button>
                 </div>
               );

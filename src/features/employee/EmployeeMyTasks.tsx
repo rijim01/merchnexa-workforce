@@ -9,6 +9,9 @@ import {
   Send,
   Sparkles,
   Info,
+  CheckCircle2,
+  Award,
+  Wallet,
 } from "lucide-react";
 import { StatusBadge } from "../../components/StatusBadge";
 import type { AssignmentItem, SubmissionItem, TaskItem } from "../../types";
@@ -118,6 +121,7 @@ export function EmployeeMyTasks() {
     setActive,
   } = useWorkforce();
 
+  const [tabFilter, setTabFilter] = useState<"ALL" | "ACTIVE" | "COMPLETED">("ALL");
   const [submittingTaskId, setSubmittingTaskId] = useState<number | null>(null);
   const [deliverableUrl, setDeliverableUrl] = useState("");
   const [submittedUnits, setSubmittedUnits] = useState("10");
@@ -204,6 +208,32 @@ export function EmployeeMyTasks() {
 
   const myAssignments = Array.from(assignedMap.values());
 
+  // Determine active vs completed tasks
+  const completedTasks = myAssignments.filter((task) => {
+    const sub = submissions.find(
+      (s) =>
+        (s.email || "").toLowerCase().trim() === userEmail &&
+        (s.taskTitle || "").toLowerCase().trim() === task.taskTitle.toLowerCase().trim()
+    );
+    return sub?.status === "Approved" || task.status === "Completed";
+  });
+
+  const activeTasks = myAssignments.filter((task) => {
+    const sub = submissions.find(
+      (s) =>
+        (s.email || "").toLowerCase().trim() === userEmail &&
+        (s.taskTitle || "").toLowerCase().trim() === task.taskTitle.toLowerCase().trim()
+    );
+    return sub?.status !== "Approved" && task.status !== "Completed";
+  });
+
+  const displayedTasks =
+    tabFilter === "COMPLETED"
+      ? completedTasks
+      : tabFilter === "ACTIVE"
+      ? activeTasks
+      : myAssignments;
+
   const handleSubmitWork = async (task: AssignmentItem) => {
     if (!deliverableUrl.trim()) {
       showToast("Please provide the Google Drive link or deliverable URL.", "warning");
@@ -271,39 +301,74 @@ export function EmployeeMyTasks() {
 
   return (
     <div className="space-y-6">
-      {/* Header card */}
+      {/* Header card with Filter Tabs */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h3 className="text-lg font-bold text-slate-900">My Assigned Tasks</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Active projects assigned to you. Review project guidelines, monitor your remaining time, and submit deliverables for review.
+              Track projects assigned to you, monitor deadlines, and view approved completions and wallet earnings.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
-              {myAssignments.length} {myAssignments.length === 1 ? "Active Task" : "Active Tasks"}
-            </span>
+
+          {/* Filter Tabs */}
+          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200 shrink-0">
+            <button
+              onClick={() => setTabFilter("ALL")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                tabFilter === "ALL"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All ({myAssignments.length})
+            </button>
+            <button
+              onClick={() => setTabFilter("ACTIVE")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                tabFilter === "ACTIVE"
+                  ? "bg-white text-blue-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Active ({activeTasks.length})
+            </button>
+            <button
+              onClick={() => setTabFilter("COMPLETED")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                tabFilter === "COMPLETED"
+                  ? "bg-white text-emerald-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              ✓ Completed ({completedTasks.length})
+            </button>
           </div>
         </div>
 
         {/* Task Cards */}
         <div className="mt-6 space-y-5">
-          {myAssignments.map((task) => {
+          {displayedTasks.map((task) => {
             const matchingTask = taskList.find((t) => t.title === task.taskTitle);
             const effectiveDeadline = task.deadline || matchingTask?.deadline || "";
             const timeInfo = getTimeRemaining(effectiveDeadline, now);
 
             const hasSubmission = submissions.find(
               (s) =>
-                s.email.toLowerCase().trim() === userEmail &&
-                s.taskTitle.toLowerCase().trim() === task.taskTitle.toLowerCase().trim()
+                (s.email || "").toLowerCase().trim() === userEmail &&
+                (s.taskTitle || "").toLowerCase().trim() === task.taskTitle.toLowerCase().trim()
             );
+
+            const isCompleted = hasSubmission?.status === "Approved" || task.status === "Completed";
 
             return (
               <div
                 key={task.id || task.taskTitle}
-                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300"
+                className={`rounded-xl border p-5 shadow-sm transition ${
+                  isCompleted
+                    ? "border-emerald-200 bg-emerald-50/20 hover:border-emerald-300"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
               >
                 {/* Title & Payment Row */}
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
@@ -312,9 +377,16 @@ export function EmployeeMyTasks() {
                       <h4 className="text-base font-bold text-slate-900">
                         {task.taskTitle}
                       </h4>
-                      <StatusBadge
-                        value={hasSubmission ? hasSubmission.status : task.status}
-                      />
+                      {isCompleted ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 size={13} className="text-emerald-600" />
+                          Completed
+                        </span>
+                      ) : (
+                        <StatusBadge
+                          value={hasSubmission ? hasSubmission.status : task.status}
+                        />
+                      )}
                     </div>
 
                     {matchingTask?.description && (
@@ -343,264 +415,331 @@ export function EmployeeMyTasks() {
                           ৳{task.unitRate} / {task.unitName || "Unit"}
                         </span>
                         <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-                          Bulky Piece Rate
+                          {isCompleted
+                            ? `Earned ৳${(hasSubmission?.payment || task.payment).toLocaleString("en-BD")}`
+                            : "Bulky Piece Rate"}
                         </p>
                       </div>
                     ) : (
-                      <p className="text-lg font-black text-slate-900">
-                        ৳{task.payment.toLocaleString("en-BD")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Prominent Countdown & Time Left Banner */}
-                <div
-                  className={`mt-4 flex flex-col justify-between gap-3 rounded-lg p-3.5 sm:flex-row sm:items-center border ${
-                    timeInfo.urgency === "overdue"
-                      ? "bg-red-50/80 border-red-200 text-red-900"
-                      : timeInfo.urgency === "urgent"
-                      ? "bg-amber-50/80 border-amber-200 text-amber-900"
-                      : timeInfo.urgency === "moderate"
-                      ? "bg-blue-50/80 border-blue-200 text-blue-900"
-                      : "bg-emerald-50/80 border-emerald-200 text-emerald-900"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {timeInfo.isOverdue ? (
-                      <AlertTriangle className="h-5 w-5 shrink-0 text-red-600" />
-                    ) : (
-                      <Clock
-                        className={`h-5 w-5 shrink-0 ${
-                          timeInfo.urgency === "urgent"
-                            ? "text-amber-600 animate-pulse"
-                            : timeInfo.urgency === "moderate"
-                            ? "text-blue-600"
-                            : "text-emerald-600"
-                        }`}
-                      />
-                    )}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wider">
-                          Time Left to Submit:
-                        </span>
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${
-                            timeInfo.urgency === "overdue"
-                              ? "bg-red-200 text-red-950"
-                              : timeInfo.urgency === "urgent"
-                              ? "bg-amber-200 text-amber-950 animate-pulse"
-                              : timeInfo.urgency === "moderate"
-                              ? "bg-blue-200 text-blue-950"
-                              : "bg-emerald-200 text-emerald-950"
+                      <div className="text-left sm:text-right">
+                        <p
+                          className={`text-lg font-black ${
+                            isCompleted ? "text-emerald-700" : "text-slate-900"
                           }`}
                         >
-                          {timeInfo.text}
+                          ৳{(hasSubmission?.payment || task.payment).toLocaleString("en-BD")}
+                        </p>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          {isCompleted ? "✓ Paid to Wallet" : "Fixed Budget"}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-[11px] opacity-80">
-                        Due Date: <b>{timeInfo.formattedDeadline}</b> • Assigned on:{" "}
-                        {task.assignedOn || "Recent"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Submit Trigger Button */}
-                  <div className="shrink-0">
-                    <button
-                      onClick={() => {
-                        setSubmittingTaskId(
-                          submittingTaskId === task.id ? null : task.id
-                        );
-                        if (hasSubmission) {
-                          setDeliverableUrl(hasSubmission.deliverableUrl);
-                          setNotes(hasSubmission.notes);
-                          if (hasSubmission.submittedQuantity) {
-                            setSubmittedUnits(hasSubmission.submittedQuantity.toString());
-                          }
-                        } else {
-                          setDeliverableUrl("");
-                          setNotes("");
-                          setSubmittedUnits("10");
-                        }
-                      }}
-                      className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                    >
-                      <FileCheck2 size={14} />
-                      {hasSubmission ? "Submit New Revision" : "Submit Deliverable"}
-                    </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Existing Submission Banner */}
-                {hasSubmission && (
-                  <div
-                    className={`mt-4 rounded-xl border p-4 ${
-                      hasSubmission.status === "Approved"
-                        ? "bg-emerald-50/60 border-emerald-200"
-                        : hasSubmission.status === "Revision Requested"
-                        ? "bg-rose-50/60 border-rose-200"
-                        : "bg-amber-50/60 border-amber-200"
-                    }`}
-                  >
-                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`h-2.5 w-2.5 rounded-full ${
-                            hasSubmission.status === "Approved"
-                              ? "bg-emerald-500"
-                              : hasSubmission.status === "Revision Requested"
-                              ? "bg-rose-500"
-                              : "bg-amber-500 animate-pulse"
-                          }`}
-                        />
-                        <span className="text-xs font-bold text-slate-800">
-                          {hasSubmission.status === "Approved"
-                            ? "✓ Deliverable Approved & Credited!"
-                            : hasSubmission.status === "Revision Requested"
-                            ? "⚠️ Revisions Requested by Admin"
-                            : "Deliverable Under Review by Admin"}
-                        </span>
-                        <span className="text-[11px] text-slate-400">
-                          Submitted on {hasSubmission.submittedOn}
-                        </span>
+                {/* COMPLETED TASK VIEW */}
+                {isCompleted && (
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50/50 p-4 shadow-xs">
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-sm">
+                          <CheckCircle2 size={20} />
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h5 className="text-sm font-bold text-emerald-950">
+                              Task Completed & Approved by Admin!
+                            </h5>
+                            {hasSubmission?.rating && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-extrabold text-amber-900 border border-amber-300">
+                                <Award size={12} className="text-amber-600" />
+                                Rating: {hasSubmission.rating}/10 ⭐
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs text-emerald-800">
+                            Approved on <b>{hasSubmission?.submittedOn || "Recent"}</b> • Payout of{" "}
+                            <b>৳{(hasSubmission?.payment || task.payment).toLocaleString("en-BD")}</b> was
+                            credited to your wallet balance.
+                          </p>
+                        </div>
                       </div>
 
-                      <a
-                        href={hasSubmission.deliverableUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
-                      >
-                        <ExternalLink size={12} /> Open Submitted Asset
-                      </a>
+                      {hasSubmission?.deliverableUrl && (
+                        <a
+                          href={hasSubmission.deliverableUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-xs hover:bg-emerald-50 transition"
+                        >
+                          <ExternalLink size={13} /> View Deliverable
+                        </a>
+                      )}
                     </div>
 
-                    {hasSubmission.feedback && (
-                      <div className="mt-2.5 rounded-lg bg-white/80 p-2.5 text-xs text-slate-700 border border-slate-200">
-                        <span className="font-bold text-slate-900">Admin Feedback: </span>
-                        {hasSubmission.feedback}
+                    {hasSubmission?.feedback && (
+                      <div className="mt-3 rounded-lg border border-emerald-200 bg-white/90 p-3 text-xs text-emerald-950">
+                        <span className="font-bold text-emerald-900">Admin Feedback: </span>
+                        "{hasSubmission.feedback}"
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Submission Form Drawer */}
-                {submittingTaskId === task.id && (
-                  <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50/50 p-4 sm:p-5">
-                    <div className="flex items-center justify-between border-b border-blue-100 pb-3">
-                      <div>
-                        <h5 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                          <Send size={14} className="text-blue-600" />
-                          {hasSubmission
-                            ? "Submit Deliverable Revision"
-                            : "Submit Work Deliverable"}
-                        </h5>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Upload your deliverable to Google Drive or Google Sheets, ensure link permissions are set to "Anyone with the link can view", and paste the link below.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 space-y-4">
-                      {task.paymentType === "PER_UNIT" && (
+                {/* IN-PROGRESS / ACTIVE TASK VIEW */}
+                {!isCompleted && (
+                  <>
+                    {/* Countdown & Time Left Banner */}
+                    <div
+                      className={`mt-4 flex flex-col justify-between gap-3 rounded-lg p-3.5 sm:flex-row sm:items-center border ${
+                        timeInfo.urgency === "overdue"
+                          ? "bg-red-50/80 border-red-200 text-red-900"
+                          : timeInfo.urgency === "urgent"
+                          ? "bg-amber-50/80 border-amber-200 text-amber-900"
+                          : timeInfo.urgency === "moderate"
+                          ? "bg-blue-50/80 border-blue-200 text-blue-900"
+                          : "bg-emerald-50/80 border-emerald-200 text-emerald-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {timeInfo.isOverdue ? (
+                          <AlertTriangle className="h-5 w-5 shrink-0 text-red-600" />
+                        ) : (
+                          <Clock
+                            className={`h-5 w-5 shrink-0 ${
+                              timeInfo.urgency === "urgent"
+                                ? "text-amber-600 animate-pulse"
+                                : timeInfo.urgency === "moderate"
+                                ? "text-blue-600"
+                                : "text-emerald-600"
+                            }`}
+                          />
+                        )}
                         <div>
-                          <label className="block text-xs font-bold text-slate-700">
-                            Total {task.unitName || "Units"} Created / Completed *
-                          </label>
-                          <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                            <input
-                              type="number"
-                              min="1"
-                              value={submittedUnits}
-                              onChange={(e) => setSubmittedUnits(e.target.value)}
-                              placeholder="e.g. 50"
-                              className="w-full sm:w-36 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-blue-500"
-                              required
-                            />
-                            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
-                              Claimed: {Number(submittedUnits) || 0} {task.unitName || "units"} @ ৳{task.unitRate || 10} ={" "}
-                              <b>
-                                ৳
-                                {(
-                                  (Number(submittedUnits) || 0) * (task.unitRate || 10)
-                                ).toLocaleString("en-BD")}
-                              </b>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold uppercase tracking-wider">
+                              Time Left to Submit:
+                            </span>
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${
+                                timeInfo.urgency === "overdue"
+                                  ? "bg-red-200 text-red-950"
+                                  : timeInfo.urgency === "urgent"
+                                  ? "bg-amber-200 text-amber-950 animate-pulse"
+                                  : timeInfo.urgency === "moderate"
+                                  ? "bg-blue-200 text-blue-950"
+                                  : "bg-emerald-200 text-emerald-950"
+                              }`}
+                            >
+                              {timeInfo.text}
                             </span>
                           </div>
+                          <p className="mt-0.5 text-[11px] opacity-80">
+                            Due Date: <b>{timeInfo.formattedDeadline}</b> • Assigned on:{" "}
+                            {task.assignedOn || "Recent"}
+                          </p>
                         </div>
-                      )}
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700">
-                          Google Drive / Sheet / Deliverable Link *
-                        </label>
-                        <input
-                          type="url"
-                          value={deliverableUrl}
-                          onChange={(e) => setDeliverableUrl(e.target.value)}
-                          placeholder="https://drive.google.com/drive/folders/... or https://docs.google.com/spreadsheets/..."
-                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-500"
-                          required
-                        />
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700">
-                          Notes / Description of Work Done
-                        </label>
-                        <textarea
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          rows={3}
-                          placeholder="Provide details about the files completed, accounts created, or special delivery notes for Admin..."
-                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-3 text-xs outline-none focus:border-blue-500"
-                        />
-                      </div>
-
-                      <div className="flex justify-end gap-2 pt-2 border-t border-blue-100">
+                      {/* Submit Trigger Button */}
+                      <div className="shrink-0">
                         <button
-                          type="button"
-                          onClick={() => setSubmittingTaskId(null)}
-                          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                          onClick={() => {
+                            setSubmittingTaskId(
+                              submittingTaskId === task.id ? null : task.id
+                            );
+                            if (hasSubmission) {
+                              setDeliverableUrl(hasSubmission.deliverableUrl);
+                              setNotes(hasSubmission.notes);
+                              if (hasSubmission.submittedQuantity) {
+                                setSubmittedUnits(hasSubmission.submittedQuantity.toString());
+                              }
+                            } else {
+                              setDeliverableUrl("");
+                              setNotes("");
+                              setSubmittedUnits("10");
+                            }
+                          }}
+                          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
                         >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isSubmitting}
-                          onClick={() => handleSubmitWork(task)}
-                          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:bg-slate-400"
-                        >
-                          <Check size={14} />
-                          {isSubmitting ? "Submitting..." : "Confirm & Submit Work"}
+                          <FileCheck2 size={14} />
+                          {hasSubmission ? "Submit New Revision" : "Submit Deliverable"}
                         </button>
                       </div>
                     </div>
-                  </div>
+
+                    {/* Existing Submission Status if Under Review or Revision Requested */}
+                    {hasSubmission && (
+                      <div
+                        className={`mt-4 rounded-xl border p-4 ${
+                          hasSubmission.status === "Revision Requested"
+                            ? "bg-rose-50/60 border-rose-200"
+                            : "bg-amber-50/60 border-amber-200"
+                        }`}
+                      >
+                        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`h-2.5 w-2.5 rounded-full ${
+                                hasSubmission.status === "Revision Requested"
+                                  ? "bg-rose-500"
+                                  : "bg-amber-500 animate-pulse"
+                              }`}
+                            />
+                            <span className="text-xs font-bold text-slate-800">
+                              {hasSubmission.status === "Revision Requested"
+                                ? "⚠️ Revisions Requested by Admin"
+                                : "Deliverable Under Review by Admin"}
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              Submitted on {hasSubmission.submittedOn}
+                            </span>
+                          </div>
+
+                          <a
+                            href={hasSubmission.deliverableUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
+                          >
+                            <ExternalLink size={12} /> Open Submitted Asset
+                          </a>
+                        </div>
+
+                        {hasSubmission.feedback && (
+                          <div className="mt-2.5 rounded-lg bg-white/80 p-2.5 text-xs text-slate-700 border border-slate-200">
+                            <span className="font-bold text-slate-900">Admin Feedback: </span>
+                            {hasSubmission.feedback}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Submission Form Drawer */}
+                    {submittingTaskId === task.id && (
+                      <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50/50 p-4 sm:p-5">
+                        <div className="flex items-center justify-between border-b border-blue-100 pb-3">
+                          <div>
+                            <h5 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                              <Send size={14} className="text-blue-600" />
+                              {hasSubmission
+                                ? "Submit Deliverable Revision"
+                                : "Submit Work Deliverable"}
+                            </h5>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Upload your deliverable to Google Drive or Google Sheets, ensure link permissions are set to "Anyone with the link can view", and paste the link below.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 space-y-4">
+                          {task.paymentType === "PER_UNIT" && (
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700">
+                                Total {task.unitName || "Units"} Created / Completed *
+                              </label>
+                              <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={submittedUnits}
+                                  onChange={(e) => setSubmittedUnits(e.target.value)}
+                                  placeholder="e.g. 50"
+                                  className="w-full sm:w-36 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-blue-500"
+                                  required
+                                />
+                                <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
+                                  Claimed: {Number(submittedUnits) || 0} {task.unitName || "units"} @ ৳{task.unitRate || 10} ={" "}
+                                  <b>
+                                    ৳
+                                    {(
+                                      (Number(submittedUnits) || 0) * (task.unitRate || 10)
+                                    ).toLocaleString("en-BD")}
+                                  </b>
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700">
+                              Google Drive / Sheet / Deliverable Link *
+                            </label>
+                            <input
+                              type="url"
+                              value={deliverableUrl}
+                              onChange={(e) => setDeliverableUrl(e.target.value)}
+                              placeholder="https://drive.google.com/drive/folders/... or https://docs.google.com/spreadsheets/..."
+                              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-blue-500"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700">
+                              Notes / Description of Work Done
+                            </label>
+                            <textarea
+                              value={notes}
+                              onChange={(e) => setNotes(e.target.value)}
+                              rows={3}
+                              placeholder="Provide details about the files completed, accounts created, or special delivery notes for Admin..."
+                              className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-3 text-xs outline-none focus:border-blue-500"
+                            />
+                          </div>
+
+                          <div className="flex justify-end gap-2 pt-2 border-t border-blue-100">
+                            <button
+                              type="button"
+                              onClick={() => setSubmittingTaskId(null)}
+                              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleSubmitWork(task)}
+                              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:bg-slate-400"
+                            >
+                              <Check size={14} />
+                              {isSubmitting ? "Submitting..." : "Confirm & Submit Work"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             );
           })}
 
-          {myAssignments.length === 0 && (
+          {displayedTasks.length === 0 && (
             <div className="rounded-xl border border-dashed border-slate-200 p-12 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
                 <FileCheck2 size={24} />
               </div>
               <h4 className="mt-4 text-base font-bold text-slate-800">
-                No active tasks assigned yet
+                {tabFilter === "COMPLETED"
+                  ? "No completed tasks yet"
+                  : tabFilter === "ACTIVE"
+                  ? "No active tasks in progress"
+                  : "No tasks assigned yet"}
               </h4>
               <p className="mt-1 text-sm text-slate-500 max-w-md mx-auto">
-                You haven't been assigned to any tasks yet. Browse open opportunities and apply to start earning!
+                {tabFilter === "COMPLETED"
+                  ? "Once your submitted work is approved by Admin, completed tasks and ratings will be displayed here."
+                  : "Browse open opportunities in Available Tasks to apply and start working!"}
               </p>
-              <button
-                onClick={() => setActive("Available Tasks")}
-                className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
-              >
-                Browse Available Tasks <ChevronRight size={14} />
-              </button>
+              {tabFilter !== "COMPLETED" && (
+                <button
+                  onClick={() => setActive("Available Tasks")}
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
+                >
+                  Browse Available Tasks <ChevronRight size={14} />
+                </button>
+              )}
             </div>
           )}
         </div>
