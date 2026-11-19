@@ -75,11 +75,12 @@ export async function authMiddleware(
       email.startsWith("jim");
 
     // Attach authoritative identity to request
+    const tokenObj = decodedToken as any;
     req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email || "",
-      name: decodedToken.name || (decodedToken as any).displayName || "",
-      displayName: (decodedToken as any).displayName || decodedToken.name || "",
+      uid: tokenObj.uid || "",
+      email: tokenObj.email || "",
+      name: tokenObj.name || tokenObj.displayName || "",
+      displayName: tokenObj.displayName || tokenObj.name || "",
       role: isAdmin ? "ADMIN" : "EMPLOYEE",
       status: "Active",
     };
