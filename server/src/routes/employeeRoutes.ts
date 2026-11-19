@@ -3,7 +3,7 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 import { requireRole } from "../middleware/rbacMiddleware.js";
 import { EmployeeModel } from "../models/Employee.js";
 import { AuditLogModel } from "../models/AuditLog.js";
-import { isDbConnected } from "../config/db.js";
+import { connectDB, isDbConnected } from "../config/db.js";
 import { sheetsRepo } from "../repositories/sheetsRepo.js";
 
 export const employeeRouter = Router();

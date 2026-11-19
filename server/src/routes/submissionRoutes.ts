@@ -4,7 +4,7 @@ import { requireAdmin } from "../middleware/rbacMiddleware.js";
 import { SubmissionModel } from "../models/Submission.js";
 import { TaskModel } from "../models/Task.js";
 import { AuditLogModel } from "../models/AuditLog.js";
-import { isDbConnected } from "../config/db.js";
+import { connectDB, isDbConnected } from "../config/db.js";
 import { sheetsRepo } from "../repositories/sheetsRepo.js";
 import { ledgerService } from "../services/ledgerService.js";
 
@@ -13,6 +13,9 @@ export const submissionRouter = Router();
 // Get all submissions
 submissionRouter.get("/", authMiddleware, async (req, res) => {
   try {
+    if (!isDbConnected()) {
+      await connectDB();
+    }
     if (isDbConnected()) {
       const submissions = await SubmissionModel.find().sort({ createdAt: -1 }).lean();
       return res.json({ success: true, submissions });
@@ -48,6 +51,9 @@ submissionRouter.post("/", authMiddleware, async (req, res) => {
   let createdSub: any = null;
 
   try {
+    if (!isDbConnected()) {
+      await connectDB();
+    }
     if (isDbConnected()) {
       createdSub = await SubmissionModel.create({
         id: subId,
