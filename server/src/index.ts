@@ -9,6 +9,7 @@ import { googleAuthRouter } from "./routes/googleAuthRoutes.js";
 import { authRouter } from "./routes/authRoutes.js";
 import { employeeRouter } from "./routes/employeeRoutes.js";
 import { submissionRouter } from "./routes/submissionRoutes.js";
+import { applicationRouter } from "./routes/applicationRoutes.js";
 import { diagnosticRouter } from "./routes/diagnosticRoutes.js";
 import { getFirebaseAdmin } from "./config/firebase.js";
 import { getSheetsClient } from "./config/sheets.js";
@@ -38,6 +39,7 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/employees", employeeRouter);
 app.use("/api/tasks", taskRouter);
+app.use("/api/applications", applicationRouter);
 app.use("/api/submissions", submissionRouter);
 app.use("/api/payments", paymentRouter);
 app.use("/api/diagnostics", diagnosticRouter);

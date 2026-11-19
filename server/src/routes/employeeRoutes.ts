@@ -65,25 +65,34 @@ employeeRouter.post("/", authMiddleware, async (req: Request, res: Response) => 
 
     let employeeDoc: any = null;
 
+    if (!isDbConnected()) {
+      await connectDB();
+    }
+
     if (isDbConnected()) {
-      employeeDoc = await EmployeeModel.findOneAndUpdate(
-        { email: targetEmail },
-        {
-          $setOnInsert: {
-            name: targetName,
-            email: targetEmail,
-            role: role || "Staff Member",
-            status,
-            initials,
-            color,
-            phone: phone || "",
-            paymentMethod: paymentMethod || "",
-            paymentNumber: paymentNumber || "",
-            joinedDate,
-          },
-        },
-        { upsert: true, new: true }
-      );
+      // 1. Strictly enforce: ONE email per employee
+      const existing = await EmployeeModel.findOne({ email: targetEmail });
+      if (existing) {
+        return res.status(409).json({
+          error: `An employee with email "${targetEmail}" is already registered (${existing.name}). One email can only be used for one employee.`,
+          employee: existing,
+        });
+      }
+
+      employeeDoc = await EmployeeModel.create({
+        name: targetName,
+        email: targetEmail,
+        role: role || "Staff Member",
+        status,
+        initials,
+        color,
+        phone: phone || "",
+        paymentMethod: paymentMethod || "",
+        paymentNumber: paymentNumber || "",
+        joinedDate,
+      });
+
+      console.log(`✅ [MongoDB Atlas] New employee registered: ${targetName} (${targetEmail})`);
 
       await AuditLogModel.create({
         actor: targetEmail,

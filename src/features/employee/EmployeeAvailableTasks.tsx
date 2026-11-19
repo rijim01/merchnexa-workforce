@@ -3,14 +3,15 @@ import { CalendarDays, ExternalLink, Send, Users, CheckCircle2 } from "lucide-re
 import { StatusBadge } from "../../components/StatusBadge";
 import type { ApplicationItem, TaskItem } from "../../types";
 import { useWorkforce } from "../../context/WorkforceContext";
+import { api } from "../../services/api";
 
 export function EmployeeAvailableTasks() {
-  const { currentEmployee, taskList, applications, setApplications, showToast } =
+  const { currentEmployee, taskList, applications, setApplications, showToast, authToken } =
     useWorkforce();
   const [applyingTaskId, setApplyingTaskId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
 
-  const handleApply = (task: TaskItem) => {
+  const handleApply = async (task: TaskItem) => {
     if (!message.trim()) {
       showToast("Please write a short note about your experience or availability.", "warning");
       return;
@@ -28,11 +29,32 @@ export function EmployeeAvailableTasks() {
 
     setApplications((prev) => [newApp, ...prev]);
     setApplyingTaskId(null);
+    const sentMsg = message.trim();
     setMessage("");
-    showToast(
-      `✓ Application for "${task.title}" submitted successfully! Admin will review it.`,
-      "success"
-    );
+
+    try {
+      const res = await api.applications.create(
+        {
+          taskTitle: task.title,
+          employee: currentEmployee.name,
+          email: currentEmployee.email,
+          message: sentMsg,
+        },
+        authToken || undefined
+      );
+
+      if (res?.application) {
+        setApplications((prev) => [res.application, ...prev.filter((a) => a.id !== newApp.id)]);
+      }
+
+      showToast(
+        `✓ Application for "${task.title}" saved to MongoDB & sent to Admin!`,
+        "success"
+      );
+    } catch (err: any) {
+      console.error("Failed to submit application to server:", err);
+      showToast(`⚠ Application error: ${err.message}`, "error");
+    }
   };
 
   const openTasks = taskList.filter((t) => t.status === "Open");

@@ -180,13 +180,20 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Sync real-time tasks from MongoDB Atlas
+  // Sync real-time tasks & applications from MongoDB Atlas
   useEffect(() => {
     async function loadBackendData() {
       try {
-        const taskData = await api.tasks.list(authToken || undefined);
-        if (taskData && Array.isArray(taskData.tasks) && taskData.tasks.length > 0) {
-          setTaskList(taskData.tasks);
+        const [taskData, appData] = await Promise.allSettled([
+          api.tasks.list(authToken || undefined),
+          api.applications.list(authToken || undefined),
+        ]);
+
+        if (taskData.status === "fulfilled" && Array.isArray(taskData.value?.tasks)) {
+          setTaskList(taskData.value.tasks);
+        }
+        if (appData.status === "fulfilled" && Array.isArray(appData.value?.applications)) {
+          setApplications(appData.value.applications);
         }
       } catch {
         // Local mode fallback
@@ -230,13 +237,19 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleEmailRegister = async (email: string, pass: string, name: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    const existing = employeeList.find((e) => e.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      throw new Error(`An employee with email "${cleanEmail}" is already registered. One email can only be used for one employee.`);
+    }
+
     const cred = await registerWithEmail(email, pass, name);
     if (cred.user) {
       const token = await cred.user.getIdToken();
       try {
-        await api.employees.create({ name, email, role: "Staff Member" }, token);
-      } catch (e) {
-        console.warn("Could not sync employee to Google Sheets immediately:", e);
+        await api.employees.create({ name, email: cleanEmail, role: "Staff Member" }, token);
+      } catch (e: any) {
+        console.warn("Employee registration error:", e.message);
       }
     }
   };

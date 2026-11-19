@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import type { ApplicationItem, ApplicationStatus, AssignmentItem } from "../../types";
 import { useWorkforce } from "../../context/WorkforceContext";
+import { api } from "../../services/api";
 
 export function ApplicationsPage() {
   const {
@@ -11,17 +12,26 @@ export function ApplicationsPage() {
     taskList,
     setTaskList,
     showToast,
+    authToken,
   } = useWorkforce();
 
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
 
-  const updateStatus = (id: number, status: ApplicationStatus) => {
+  const updateStatus = async (id: number, status: ApplicationStatus) => {
     setApplications((current) =>
       current.map((application) =>
         application.id === id ? { ...application, status } : application
       )
     );
+
+    try {
+      await api.applications.updateStatus(id, status, authToken || undefined);
+      showToast(`Application marked as ${status} in MongoDB!`, "success");
+    } catch (err: any) {
+      console.error("Failed to update application on server:", err);
+      showToast(`Status updated locally (Server sync: ${err.message})`, "warning");
+    }
   };
 
   const assignApplication = (application: ApplicationItem) => {
