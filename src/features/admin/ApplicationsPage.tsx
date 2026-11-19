@@ -11,6 +11,7 @@ export function ApplicationsPage() {
     setAssignments,
     taskList,
     setTaskList,
+    employeeList,
     showToast,
     authToken,
   } = useWorkforce();
@@ -228,6 +229,29 @@ export function ApplicationsPage() {
                   <p className="mt-1 text-sm text-slate-500">
                     {application.email}
                   </p>
+
+                  {/* Applicant Skills */}
+                  {(() => {
+                    const applicant = employeeList.find(
+                      (e) => e.email.toLowerCase() === application.email.toLowerCase()
+                    );
+                    if (applicant?.skills && applicant.skills.length > 0) {
+                      return (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-semibold text-slate-400">Skills:</span>
+                          {applicant.skills.map((skill) => (
+                            <span
+                              key={skill}
+                              className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-100"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 <span

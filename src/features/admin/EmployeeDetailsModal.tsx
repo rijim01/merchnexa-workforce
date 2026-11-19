@@ -164,16 +164,20 @@ export function EmployeeDetailsModal({
               {/* Skills badges */}
               <div>
                 <h4 className="font-semibold text-slate-900 mb-2">Skills & Specializations</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {(employee.skills || ["Graphic Design", "Content Writer"]).map((skill) => (
-                    <span
-                      key={skill}
-                      className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-100"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+                {employee.skills && employee.skills.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {employee.skills.map((skill) => (
+                      <span
+                        key={skill}
+                        className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-100"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No skills listed on this employee's profile.</p>
+                )}
               </div>
 
               {/* Personal Details Grid */}

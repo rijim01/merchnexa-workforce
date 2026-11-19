@@ -160,6 +160,20 @@ export function EmployeesPage() {
                 <StatusBadge value={employee.status} />
               </div>
 
+              {/* Skills preview on mobile */}
+              {employee.skills && employee.skills.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1">
+                  {employee.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5" onClick={(e) => e.stopPropagation()}>
                 <span className="text-xs text-slate-500 font-medium">{employee.role}</span>
                 <div className="flex items-center gap-1.5">
@@ -195,6 +209,7 @@ export function EmployeesPage() {
               <tr>
                 <th className="pb-3 font-medium">Employee</th>
                 <th className="pb-3 font-medium">Role</th>
+                <th className="pb-3 font-medium">Skills</th>
                 <th className="pb-3 font-medium">Status</th>
                 <th className="pb-3 text-right font-medium">Actions</th>
               </tr>
@@ -236,6 +251,29 @@ export function EmployeesPage() {
 
                   <td className="py-4 text-sm text-slate-600">
                     {employee.role}
+                  </td>
+
+                  {/* Skills Badges */}
+                  <td className="py-4">
+                    {employee.skills && employee.skills.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {employee.skills.slice(0, 3).map((skill) => (
+                          <span
+                            key={skill}
+                            className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-100"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                        {employee.skills.length > 3 && (
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            +{employee.skills.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">No skills listed</span>
+                    )}
                   </td>
 
                   <td className="py-4">
