@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Eye } from "lucide-react";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useWorkforce } from "../../context/WorkforceContext";
@@ -11,6 +11,21 @@ export function EmployeesPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+
+  // Live fetch employees from MongoDB Atlas on mount
+  useEffect(() => {
+    async function fetchEmployees() {
+      try {
+        const res = await api.employees.list(authToken || undefined);
+        if (res && Array.isArray(res.employees) && res.employees.length > 0) {
+          setEmployeeList(res.employees);
+        }
+      } catch (err) {
+        console.warn("Could not fetch live employees:", err);
+      }
+    }
+    fetchEmployees();
+  }, [authToken]);
 
   const pendingCount = employeeList.filter(
     (employee) => employee.status === "Pending"

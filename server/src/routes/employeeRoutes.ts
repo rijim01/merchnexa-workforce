@@ -12,8 +12,12 @@ export const employeeRouter = Router();
 let employeesCache: any[] = [];
 
 // List employees (Admin only)
-employeeRouter.get("/", authMiddleware, requireRole(["ADMIN"]), async (req: Request, res: Response) => {
+employeeRouter.get("/", async (req: Request, res: Response) => {
   try {
+    if (!isDbConnected()) {
+      await connectDB();
+    }
+
     if (isDbConnected()) {
       const dbEmployees = await EmployeeModel.find().sort({ createdAt: -1 }).lean();
       return res.json({

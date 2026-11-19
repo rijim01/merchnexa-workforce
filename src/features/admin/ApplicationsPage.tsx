@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ApplicationItem, ApplicationStatus, AssignmentItem } from "../../types";
 import { useWorkforce } from "../../context/WorkforceContext";
 import { api } from "../../services/api";
@@ -17,6 +17,21 @@ export function ApplicationsPage() {
 
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
+
+  // Live fetch applications from MongoDB on mount
+  useEffect(() => {
+    async function fetchApps() {
+      try {
+        const res = await api.applications.list(authToken || undefined);
+        if (res && Array.isArray(res.applications)) {
+          setApplications(res.applications);
+        }
+      } catch (err) {
+        console.warn("Could not fetch live applications:", err);
+      }
+    }
+    fetchApps();
+  }, [authToken]);
 
   const updateStatus = async (id: number, status: ApplicationStatus) => {
     setApplications((current) =>

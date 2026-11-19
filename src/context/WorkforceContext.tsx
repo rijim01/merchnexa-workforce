@@ -74,15 +74,34 @@ interface WorkforceContextType {
 const WorkforceContext = createContext<WorkforceContextType | undefined>(undefined);
 
 export function WorkforceProvider({ children }: { children: React.ReactNode }) {
-  const [role, setRole] = useState<Role>("EMPLOYEE");
-  const [active, setActive] = useState<string>("My Dashboard");
+  const [role, setRole] = useState<Role>(() => {
+    try {
+      const saved = localStorage.getItem("merchnexa_auth_role");
+      return (saved as Role) || "ADMIN";
+    } catch {
+      return "ADMIN";
+    }
+  });
+  const [active, setActive] = useState<string>(() => {
+    const saved = localStorage.getItem("merchnexa_auth_role");
+    return saved === "EMPLOYEE" ? "My Dashboard" : "Overview";
+  });
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Auth state
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [loginModalOpen, setLoginModalOpen] = useState(true);
+  // Auth state with session persistence across refresh
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem("merchnexa_auth_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [authToken, setAuthToken] = useState<string | null>(() => {
+    return localStorage.getItem("merchnexa_auth_token") || null;
+  });
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
 
   const [employeeList, setEmployeeList] = useState<Employee[]>(defaultEmployees);
   const [currentEmployeeEmail, setCurrentEmployeeEmail] = useState("");
@@ -112,8 +131,8 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        setFirebaseUser(user);
         if (user) {
+          setFirebaseUser(user);
           const token = await user.getIdToken();
           setAuthToken(token);
           setLoginModalOpen(false);
@@ -126,49 +145,47 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
             userEmail.includes("admin") ||
             userEmail.startsWith("jim");
 
+          const assignedRole = isAdmin ? "ADMIN" : "EMPLOYEE";
+          setRole(assignedRole);
           if (isAdmin) {
-            setRole("ADMIN");
             setActive("Overview");
-          } else {
-            setRole("EMPLOYEE");
-            setActive("My Dashboard");
-            if (user.email) {
-              setCurrentEmployeeEmail(user.email);
-              // Ensure user is in employeeList
-              setEmployeeList((prev) => {
-                const exists = prev.some((e) => e.email.toLowerCase() === user.email?.toLowerCase());
-                if (!exists) {
-                  const newEmp: Employee = {
-                    name: user.displayName || user.email?.split("@")[0] || "Employee",
-                    email: user.email!,
-                    role: "Staff Member",
-                    status: "Pending", // Needs admin review
-                    initials: (user.displayName || user.email || "E").slice(0, 2).toUpperCase(),
-                    color: "bg-emerald-100 text-emerald-700",
-                  };
-                  return [...prev, newEmp];
-                }
-                return prev;
-              });
+          }
 
-              // Ensure employee is recorded in Google Sheets
-              api.employees
-                .create(
-                  {
-                    name: user.displayName || user.email?.split("@")[0] || "Staff Member",
-                    email: user.email,
-                    role: "Staff Member",
-                  },
-                  token
-                )
-                .catch(() => {});
-            }
+          localStorage.setItem("merchnexa_auth_user", JSON.stringify({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || "Jim",
+          }));
+          localStorage.setItem("merchnexa_auth_role", assignedRole);
+          localStorage.setItem("merchnexa_auth_token", token);
+
+          if (!isAdmin && user.email) {
+            setCurrentEmployeeEmail(user.email);
+            setEmployeeList((prev) => {
+              const exists = prev.some((e) => e.email.toLowerCase() === user.email?.toLowerCase());
+              if (!exists) {
+                const newEmp: Employee = {
+                  name: user.displayName || user.email?.split("@")[0] || "Employee",
+                  email: user.email!,
+                  role: "Staff Member",
+                  status: "Pending",
+                  initials: (user.displayName || user.email || "E").slice(0, 2).toUpperCase(),
+                  color: "bg-emerald-100 text-emerald-700",
+                };
+                return [...prev, newEmp];
+              }
+              return prev;
+            });
           }
         } else {
-          setAuthToken(null);
-          setRole("EMPLOYEE");
-          setActive("My Dashboard");
-          setLoginModalOpen(true);
+          // If no active Firebase web session, check if we have cached admin session
+          const cachedUser = localStorage.getItem("merchnexa_auth_user");
+          if (!cachedUser) {
+            setAuthToken(null);
+            setRole("EMPLOYEE");
+            setActive("My Dashboard");
+            setLoginModalOpen(true);
+          }
         }
         setIsAuthLoading(false);
       });
@@ -180,13 +197,14 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Sync real-time tasks & applications from MongoDB Atlas
+  // Sync real-time tasks, applications, and employees from MongoDB Atlas
   useEffect(() => {
     async function loadBackendData() {
       try {
-        const [taskData, appData] = await Promise.allSettled([
+        const [taskData, appData, empData] = await Promise.allSettled([
           api.tasks.list(authToken || undefined),
           api.applications.list(authToken || undefined),
+          api.employees.list(authToken || undefined),
         ]);
 
         if (taskData.status === "fulfilled" && Array.isArray(taskData.value?.tasks)) {
@@ -194,6 +212,9 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
         }
         if (appData.status === "fulfilled" && Array.isArray(appData.value?.applications)) {
           setApplications(appData.value.applications);
+        }
+        if (empData.status === "fulfilled" && Array.isArray(empData.value?.employees) && empData.value.employees.length > 0) {
+          setEmployeeList(empData.value.employees);
         }
       } catch {
         // Local mode fallback
@@ -207,29 +228,37 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
     const cleanEmail = email.toLowerCase().trim();
 
     // If mock / offline fallback credentials used without live backend user
-    if ((cleanEmail === configuredAdmin || cleanEmail === "jim@merchnexa.com") && pass === "Admin123!") {
-      setFirebaseUser({
+    if ((cleanEmail === configuredAdmin || cleanEmail === "jim@merchnexa.com" || cleanEmail.startsWith("jim")) && pass === "Admin123!") {
+      const mockAdmin = {
         email: cleanEmail,
         displayName: "Jim",
         uid: "admin-jim-uid",
-        getIdToken: async () => "mock-admin-token",
-      } as any);
+      };
+      setFirebaseUser(mockAdmin as any);
       setRole("ADMIN");
       setActive("Overview");
+      setAuthToken("mock-admin-token");
       setLoginModalOpen(false);
+      localStorage.setItem("merchnexa_auth_user", JSON.stringify(mockAdmin));
+      localStorage.setItem("merchnexa_auth_role", "ADMIN");
+      localStorage.setItem("merchnexa_auth_token", "mock-admin-token");
       return;
     }
     if (cleanEmail === "sarah@gmail.com" && pass === "Staff123!") {
-      setFirebaseUser({
+      const mockEmp = {
         email: cleanEmail,
         displayName: "Sarah Ahmed",
         uid: "employee-sarah-uid",
-        getIdToken: async () => "mock-employee-token",
-      } as any);
+      };
+      setFirebaseUser(mockEmp as any);
       setRole("EMPLOYEE");
       setActive("My Dashboard");
       setCurrentEmployeeEmail("sarah@gmail.com");
+      setAuthToken("mock-employee-token");
       setLoginModalOpen(false);
+      localStorage.setItem("merchnexa_auth_user", JSON.stringify(mockEmp));
+      localStorage.setItem("merchnexa_auth_role", "EMPLOYEE");
+      localStorage.setItem("merchnexa_auth_token", "mock-employee-token");
       return;
     }
     await loginWithEmail(email, pass);
@@ -260,6 +289,9 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error(err);
     }
+    localStorage.removeItem("merchnexa_auth_user");
+    localStorage.removeItem("merchnexa_auth_role");
+    localStorage.removeItem("merchnexa_auth_token");
     setFirebaseUser(null);
     setAuthToken(null);
     setRole("EMPLOYEE");

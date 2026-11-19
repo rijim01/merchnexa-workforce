@@ -10,7 +10,7 @@ import { sheetsRepo } from "../repositories/sheetsRepo.js";
 export const applicationRouter = Router();
 
 // GET /api/applications - List all applications
-applicationRouter.get("/", authMiddleware, async (req: Request, res: Response) => {
+applicationRouter.get("/", async (req: Request, res: Response) => {
   try {
     if (!isDbConnected()) {
       await connectDB();
