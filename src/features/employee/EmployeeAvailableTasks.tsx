@@ -205,8 +205,6 @@ export function EmployeeAvailableTasks() {
                         Slots Filled
                       </span>
                     )}
-                      </button>
-                    )}
                   </div>
                 </div>
 
