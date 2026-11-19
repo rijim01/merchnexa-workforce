@@ -5,6 +5,8 @@ import { config } from "../config/env.js";
 export interface AuthenticatedUser {
   uid: string;
   email: string;
+  name?: string;
+  displayName?: string;
   role: "ADMIN" | "EMPLOYEE";
   status: "Active" | "Pending" | "Suspended" | "Rejected";
 }
@@ -76,6 +78,8 @@ export async function authMiddleware(
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email || "",
+      name: decodedToken.name || (decodedToken as any).displayName || "",
+      displayName: (decodedToken as any).displayName || decodedToken.name || "",
       role: isAdmin ? "ADMIN" : "EMPLOYEE",
       status: "Active",
     };
