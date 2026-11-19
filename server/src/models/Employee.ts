@@ -12,6 +12,10 @@ export interface IEmployee extends Document {
   photoUrl?: string;
   bio?: string;
   skills: string[];
+  rating?: number;
+  ratingCount?: number;
+  completedTasks?: number;
+  totalEarnings?: number;
   paymentMethod?: string;
   paymentNumber?: string;
   joinedDate?: string;
@@ -36,6 +40,10 @@ const EmployeeSchema = new Schema<IEmployee>(
     photoUrl: { type: String, default: "" },
     bio: { type: String, default: "" },
     skills: { type: [String], default: [] },
+    rating: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 },
+    completedTasks: { type: Number, default: 0 },
+    totalEarnings: { type: Number, default: 0 },
     paymentMethod: { type: String, default: "" },
     paymentNumber: { type: String, default: "" },
     joinedDate: { type: String, default: () => new Date().toISOString().slice(0, 10) },

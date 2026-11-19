@@ -175,7 +175,12 @@ export function EmployeesPage() {
               )}
 
               <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5" onClick={(e) => e.stopPropagation()}>
-                <span className="text-xs text-slate-500 font-medium">{employee.role}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500 font-medium">{employee.role}</span>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                    ⭐ {employee.rating ? `${employee.rating.toFixed(1)}/10` : "New"}
+                  </span>
+                </div>
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setSelectedEmployee(employee)}
@@ -209,6 +214,7 @@ export function EmployeesPage() {
               <tr>
                 <th className="pb-3 font-medium">Employee</th>
                 <th className="pb-3 font-medium">Role</th>
+                <th className="pb-3 font-medium">Rating</th>
                 <th className="pb-3 font-medium">Skills</th>
                 <th className="pb-3 font-medium">Status</th>
                 <th className="pb-3 text-right font-medium">Actions</th>
@@ -251,6 +257,15 @@ export function EmployeesPage() {
 
                   <td className="py-4 text-sm text-slate-600">
                     {employee.role}
+                  </td>
+
+                  <td className="py-4 pr-3 text-xs">
+                    <span className="inline-flex items-center gap-1 font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      ⭐ {employee.rating ? `${employee.rating.toFixed(1)}/10` : "New"}
+                    </span>
+                    {employee.completedTasks ? (
+                      <span className="ml-1 text-[10px] text-slate-400">({employee.completedTasks})</span>
+                    ) : null}
                   </td>
 
                   {/* Skills Badges */}

@@ -201,12 +201,13 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadBackendData() {
       try {
-        const [taskData, appData, empData, assignData, subData] = await Promise.allSettled([
+        const [taskData, appData, empData, assignData, subData, ledgerData] = await Promise.allSettled([
           api.tasks.list(authToken || undefined),
           api.applications.list(authToken || undefined),
           api.employees.list(authToken || undefined),
           api.assignments.list(authToken || undefined),
           api.submissions.list(authToken || undefined),
+          api.payments.getLedger(authToken || undefined),
         ]);
 
         if (taskData.status === "fulfilled" && Array.isArray(taskData.value?.tasks)) {
@@ -223,6 +224,9 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
         }
         if (subData.status === "fulfilled" && Array.isArray(subData.value?.submissions)) {
           setSubmissions(subData.value.submissions);
+        }
+        if (ledgerData.status === "fulfilled" && Array.isArray(ledgerData.value?.ledger)) {
+          setLedger(ledgerData.value.ledger);
         }
       } catch {
         // Local mode fallback

@@ -104,7 +104,7 @@ export function SubmissionsPage() {
       "success"
     );
 
-    // Sync approval and ledger credit to Google Sheets
+    // Sync approval, rating, and wallet payout to MongoDB Atlas (and Google Sheets)
     api.submissions
       .approve(
         approvingSubmission.id,
@@ -121,8 +121,14 @@ export function SubmissionsPage() {
         },
         authToken || undefined
       )
+      .then(() => {
+        // Refresh live ledger transactions and employees from MongoDB
+        api.payments.getLedger(authToken || undefined).then((res) => {
+          if (res?.ledger) setLedger(res.ledger);
+        });
+      })
       .catch((err) => {
-        console.warn("Could not sync approval to Google Sheets immediately:", err);
+        console.warn("Could not sync approval to server immediately:", err);
       });
 
     setApprovingSubmission(null);

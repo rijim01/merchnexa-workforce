@@ -3,6 +3,8 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 import { requireAdmin } from "../middleware/rbacMiddleware.js";
 import { SubmissionModel } from "../models/Submission.js";
 import { TaskModel } from "../models/Task.js";
+import { EmployeeModel } from "../models/Employee.js";
+import { AssignmentModel } from "../models/Assignment.js";
 import { AuditLogModel } from "../models/AuditLog.js";
 import { connectDB, isDbConnected } from "../config/db.js";
 import { sheetsRepo } from "../repositories/sheetsRepo.js";
@@ -134,6 +136,8 @@ submissionRouter.patch("/:id/approve", authMiddleware, requireAdmin, async (req,
     const txnId = `TXN-${Date.now().toString().slice(-4)}`;
 
     if (isDbConnected()) {
+      const cleanEmail = email.toLowerCase().trim();
+
       // 1. Update submission status in MongoDB Atlas
       await SubmissionModel.findOneAndUpdate(
         { id: subId },
@@ -152,10 +156,45 @@ submissionRouter.patch("/:id/approve", authMiddleware, requireAdmin, async (req,
           { title: taskTitle },
           { $inc: { completedQuantity: Number(approvedQuantity) || 1 } }
         );
+
+        // Update Assignment status to Completed
+        await AssignmentModel.findOneAndUpdate(
+          { taskTitle, email: cleanEmail },
+          { status: "Completed" }
+        );
       }
+
+      // 3. Recalculate employee overall rating and total earnings
+      const allUserApprovedSubs = await SubmissionModel.find({
+        email: cleanEmail,
+        status: "Approved",
+      }).lean();
+
+      const validRatings = allUserApprovedSubs
+        .map((s) => s.rating)
+        .filter((r): r is number => typeof r === "number" && r > 0);
+      
+      const newAvgRating = validRatings.length > 0
+        ? Number((validRatings.reduce((sum, r) => sum + r, 0) / validRatings.length).toFixed(1))
+        : Number(rating) || 10;
+      
+      const totalTasksCompleted = allUserApprovedSubs.length;
+      const totalEarnedAmount = allUserApprovedSubs.reduce((sum, s) => sum + (s.payment || 0), 0);
+
+      await EmployeeModel.findOneAndUpdate(
+        { email: cleanEmail },
+        {
+          rating: newAvgRating,
+          ratingCount: validRatings.length,
+          completedTasks: totalTasksCompleted,
+          totalEarnings: totalEarnedAmount,
+        }
+      );
+
+      console.log(`✅ [MongoDB Atlas] Employee ${cleanEmail} rating updated to ${newAvgRating}⭐ (${totalTasksCompleted} completed tasks, ৳${totalEarnedAmount} earned)`);
     }
 
-    // 3. Credit employee ledger in MongoDB Atlas (and mirror to Sheets)
+    // 4. Credit employee ledger in MongoDB Atlas (and mirror to Sheets)
     await ledgerService.recordTransaction({
       id: txnId,
       employeeEmail: email.toLowerCase().trim(),

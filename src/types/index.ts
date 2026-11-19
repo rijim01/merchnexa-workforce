@@ -12,6 +12,10 @@ export interface Employee {
   phone?: string;
   birthDate?: string;
   skills?: string[];
+  rating?: number;
+  ratingCount?: number;
+  completedTasks?: number;
+  totalEarnings?: number;
   photoUrl?: string;
   bio?: string;
   joinedDate?: string;

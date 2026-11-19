@@ -9,7 +9,14 @@ export function EmployeeEarnings() {
   const [cashoutMethod, setCashoutMethod] = useState("bKash");
   const [cashoutAccount, setCashoutAccount] = useState("");
 
-  const myLedger = ledger.filter((l) => l.email === currentEmployee.email);
+  const userEmail = (currentEmployee?.email || "").toLowerCase().trim();
+  const userName = (currentEmployee?.name || "").toLowerCase().trim();
+
+  const myLedger = ledger.filter((l) => {
+    const lEmail = (l.email || (l as any).employeeEmail || "").toLowerCase().trim();
+    const lName = (l.employee || (l as any).employeeName || "").toLowerCase().trim();
+    return (userEmail && lEmail === userEmail) || (userName && lName === userName);
+  });
 
   const totalCredits = myLedger
     .filter((l) => l.type === "CREDIT")

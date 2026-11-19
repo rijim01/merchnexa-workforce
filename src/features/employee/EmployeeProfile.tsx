@@ -170,6 +170,9 @@ export function EmployeeProfile() {
                 <ShieldCheck size={12} />
                 {currentEmployee.status} Staff
               </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800 border border-amber-200">
+                ⭐ {currentEmployee.rating ? `${currentEmployee.rating.toFixed(1)}/10 Rating` : "5.0/10 Rating"}
+              </span>
             </div>
             <p className="mt-0.5 text-xs font-medium text-slate-500">{role || "Employee"}</p>
             <p className="mt-1 text-xs text-slate-400 font-mono">{currentEmployeeEmail}</p>

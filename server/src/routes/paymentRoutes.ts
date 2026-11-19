@@ -3,18 +3,18 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 import { requireAdmin } from "../middleware/rbacMiddleware.js";
 import { ledgerService } from "../services/ledgerService.js";
 import { sheetsRepo } from "../repositories/sheetsRepo.js";
+import { connectDB, isDbConnected } from "../config/db.js";
 
 export const paymentRouter = Router();
 
 // Get financial ledger transactions
-paymentRouter.get("/ledger", authMiddleware, async (req, res) => {
+paymentRouter.get("/ledger", async (req, res) => {
   try {
-    const txns = await ledgerService.getLedger();
-    if (txns && txns.length > 0) {
-      return res.json({ success: true, ledger: txns });
+    if (!isDbConnected()) {
+      await connectDB();
     }
-    const rows = await sheetsRepo.readRows("Transactions");
-    res.json({ success: true, data: rows });
+    const txns = await ledgerService.getLedger();
+    return res.json({ success: true, ledger: txns });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

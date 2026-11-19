@@ -83,18 +83,36 @@ export function EmployeeDashboard() {
   });
 
   const myAssignments = Array.from(assignedMap.values());
-  const mySubmissions = submissions.filter(
-    (s) => s.email === currentEmployee.email
-  );
-  const myLedger = ledger.filter((l) => l.email === currentEmployee.email);
+  const mySubmissions = submissions.filter((s) => {
+    const sEmail = (s.email || "").toLowerCase().trim();
+    const sName = (s.employee || "").toLowerCase().trim();
+    return (userEmail && sEmail === userEmail) || (userName && sName === userName);
+  });
+
+  const myLedger = ledger.filter((l) => {
+    const lEmail = (l.email || (l as any).employeeEmail || "").toLowerCase().trim();
+    const lName = (l.employee || (l as any).employeeName || "").toLowerCase().trim();
+    return (userEmail && lEmail === userEmail) || (userName && lName === userName);
+  });
 
   const totalCredits = myLedger
     .filter((l) => l.type === "CREDIT")
-    .reduce((sum, l) => sum + l.amount, 0);
+    .reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
   const totalDebits = myLedger
     .filter((l) => l.type === "DEBIT")
-    .reduce((sum, l) => sum + l.amount, 0);
+    .reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
   const myBalance = totalCredits - totalDebits;
+
+  // Calculate live average rating from approved deliverables
+  const ratedSubs = mySubmissions.filter(
+    (s) => s.status === "Approved" && typeof s.rating === "number" && s.rating > 0
+  );
+  const liveRating =
+    ratedSubs.length > 0
+      ? (ratedSubs.reduce((sum, s) => sum + (s.rating || 0), 0) / ratedSubs.length).toFixed(1)
+      : currentEmployee.rating
+      ? currentEmployee.rating.toFixed(1)
+      : "5.0";
 
   const underReviewCount = mySubmissions.filter(
     (s) => s.status === "Under Review"
@@ -110,9 +128,14 @@ export function EmployeeDashboard() {
       <div className="rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white shadow-sm sm:p-8">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
-              Staff Portal • {currentEmployee.role}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
+                Staff Portal • {currentEmployee.role}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/20 text-amber-200 px-3 py-1 text-xs font-bold border border-amber-300/30 backdrop-blur-sm">
+                ⭐ {liveRating}/10 Rating ({ratedSubs.length} {ratedSubs.length === 1 ? "review" : "reviews"})
+              </span>
+            </div>
             <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
               Welcome back, {currentEmployee.name}!
             </h2>
