@@ -54,6 +54,10 @@ export const api = {
     list: (token?: string) => fetchWithAuth("/tasks", { method: "GET" }, token),
     create: (taskData: any, token?: string) =>
       fetchWithAuth("/tasks", { method: "POST", body: JSON.stringify(taskData) }, token),
+    getWorkers: (taskId: number, token?: string) =>
+      fetchWithAuth(`/tasks/${taskId}/workers`, { method: "GET" }, token),
+    unassignWorker: (taskId: number, data: { email?: string; employeeName?: string }, token?: string) =>
+      fetchWithAuth(`/tasks/${taskId}/unassign`, { method: "POST", body: JSON.stringify(data) }, token),
   },
   applications: {
     list: (token?: string) => fetchWithAuth("/applications", { method: "GET" }, token),

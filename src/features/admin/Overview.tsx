@@ -170,7 +170,16 @@ export function Overview() {
                     <StatusBadge value={task.status} />
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>Assigned: <b>{task.employee || "Unassigned"}</b></span>
+                    <span>
+                      Staff:{" "}
+                      {task.assignedEmployees && task.assignedEmployees.length > 0 ? (
+                        <b className="text-slate-800">
+                          {task.assignedEmployees.join(", ")} ({task.assignedEmployees.length}/{task.slots || 1})
+                        </b>
+                      ) : (
+                        <span className="text-slate-400">Unassigned (0/{task.slots || 1})</span>
+                      )}
+                    </span>
                     <span>Due: {task.deadline}</span>
                   </div>
                   <div className="flex items-center justify-between border-t border-slate-200/60 pt-2 text-xs">
@@ -219,8 +228,22 @@ export function Overview() {
                       <td className="py-4 pr-3 text-sm font-medium text-slate-800">
                         {task.title}
                       </td>
-                      <td className="py-4 pr-3 text-sm text-slate-500">
-                        {task.employee || "Unassigned"}
+                      <td className="py-4 pr-3 text-sm text-slate-600">
+                        {task.assignedEmployees && task.assignedEmployees.length > 0 ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900">
+                              {task.assignedEmployees.slice(0, 2).join(", ")}
+                              {task.assignedEmployees.length > 2 && ` (+${task.assignedEmployees.length - 2})`}
+                            </span>
+                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
+                              {task.assignedEmployees.length}/{task.slots || 1} staff
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-400">
+                            Unassigned (0/{task.slots || 1})
+                          </span>
+                        )}
                       </td>
                       <td className="py-4 pr-3 text-xs text-slate-500">
                         {task.deadline}

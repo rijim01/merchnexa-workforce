@@ -4,11 +4,13 @@ import { StatusBadge } from "../../components/StatusBadge";
 import type { TaskItem, TaskStatus } from "../../types";
 import { useWorkforce } from "../../context/WorkforceContext";
 import { api } from "../../services/api";
+import { TaskWorkersModal } from "./TaskWorkersModal";
 
 export function TasksPage() {
   const { taskList, setTaskList, applications, authToken, showToast } = useWorkforce();
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState("All");
+  const [selectedTaskForWorkers, setSelectedTaskForWorkers] = useState<TaskItem | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -618,16 +620,44 @@ export function TasksPage() {
                       </span>
                     </span>
 
-                    <span className="flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                    {/* Active Staff Workforce Checker */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTaskForWorkers(task)}
+                      className="group flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/90 px-3 py-1 text-xs transition hover:border-blue-400 hover:bg-blue-50/70 shadow-sm"
+                      title="Click to check who is working on this task, submissions, and workforce status"
+                    >
+                      <span className="flex items-center gap-1.5 font-bold text-slate-800 group-hover:text-blue-700">
+                        <Users size={13} className="text-blue-600" />
+                        {task.assignedEmployees && task.assignedEmployees.length > 0 ? (
+                          <>
+                            <span>Active Staff:</span>
+                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-black text-blue-800">
+                              {task.assignedEmployees.length}/{task.slots || 1}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-slate-500">Unstaffed:</span>
+                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700">
+                              0/{task.slots || 1}
+                            </span>
+                          </>
+                        )}
+                      </span>
+
                       {task.assignedEmployees && task.assignedEmployees.length > 0 ? (
-                        <span className="font-semibold text-slate-700">
-                          Assigned: {task.assignedEmployees.join(", ")} ({task.assignedEmployees.length}/{task.slots || 1} staff)
+                        <span className="font-semibold text-slate-600 group-hover:text-blue-800 truncate max-w-[200px]">
+                          {task.assignedEmployees.slice(0, 2).join(", ")}
+                          {task.assignedEmployees.length > 2 && ` +${task.assignedEmployees.length - 2}`}
+                          <span className="ml-1.5 text-[11px] font-bold text-blue-600 underline">Check Workers →</span>
                         </span>
                       ) : (
-                        <span>Capacity: 0/{task.slots || 1} assigned ({task.slots || 1} staff needed)</span>
+                        <span className="text-[11px] font-bold text-blue-600">
+                          Check Applicants →
+                        </span>
                       )}
-                    </span>
+                    </button>
 
                     {task.documentUrl && (
                       <a
@@ -768,6 +798,19 @@ export function TasksPage() {
           </p>
         </div>
       </div>
+
+      {/* Task Workers Workforce Modal */}
+      {selectedTaskForWorkers && (
+        <TaskWorkersModal
+          task={selectedTaskForWorkers}
+          onClose={() => setSelectedTaskForWorkers(null)}
+          onWorkerUnassigned={() => {
+            api.tasks.list(authToken || undefined).then((res) => {
+              if (res?.tasks) setTaskList(res.tasks);
+            });
+          }}
+        />
+      )}
     </div>
   );
 }
