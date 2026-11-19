@@ -82,6 +82,14 @@ export const api = {
     getLedger: (token?: string) => fetchWithAuth("/payments/ledger", { method: "GET" }, token),
     recordCashout: (payoutData: any, token?: string) =>
       fetchWithAuth("/payments/cashout", { method: "POST", body: JSON.stringify(payoutData) }, token),
+    listCashoutRequests: (token?: string) =>
+      fetchWithAuth("/payments/cashout-requests", { method: "GET" }, token),
+    requestCashout: (data: any, token?: string) =>
+      fetchWithAuth("/payments/cashout-requests", { method: "POST", body: JSON.stringify(data) }, token),
+    approveCashoutRequest: (id: string, data: any, token?: string) =>
+      fetchWithAuth(`/payments/cashout-requests/${id}/approve`, { method: "PATCH", body: JSON.stringify(data) }, token),
+    rejectCashoutRequest: (id: string, data: any, token?: string) =>
+      fetchWithAuth(`/payments/cashout-requests/${id}/reject`, { method: "PATCH", body: JSON.stringify(data) }, token),
   },
   diagnostics: {
     testConnections: () => fetchWithAuth("/diagnostics/test-connections", { method: "GET" }),

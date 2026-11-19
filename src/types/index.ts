@@ -122,3 +122,21 @@ export interface ActivityItem {
   time: string;
   icon: any;
 }
+
+export type CashoutStatus = "Pending" | "Paid" | "Rejected";
+
+export interface CashoutRequestItem {
+  id: string;
+  employeeName: string;
+  employeeEmail: string;
+  amount: number;
+  method: PaymentMethod;
+  accountNumber: string;
+  status: CashoutStatus;
+  requestedDate: string;
+  processedDate?: string;
+  transactionRef?: string;
+  adminNote?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}

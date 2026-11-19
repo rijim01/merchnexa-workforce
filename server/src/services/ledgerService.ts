@@ -73,14 +73,18 @@ export class LedgerService {
   /**
    * Authoritative balance calculation derived purely from append-only ledger entries
    */
-  calculateBalance(transactions: Transaction[], email: string): number {
-    const userTxns = transactions.filter((t) => t.employeeEmail.toLowerCase() === email.toLowerCase());
+  calculateBalance(transactions: any[], email: string): number {
+    const target = (email || "").toLowerCase().trim();
+    if (!target) return 0;
+    const userTxns = transactions.filter(
+      (t) => (t.email || t.employeeEmail || "").toLowerCase().trim() === target
+    );
     const credits = userTxns
       .filter((t) => t.type === "CREDIT")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
     const debits = userTxns
       .filter((t) => t.type === "DEBIT")
-      .reduce((sum, t) => sum + t.amount, 0);
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
     return credits - debits;
   }

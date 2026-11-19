@@ -1,13 +1,23 @@
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { X, Clock, CheckCircle2, XCircle, AlertCircle, Send } from "lucide-react";
 import { useWorkforce } from "../../context/WorkforceContext";
+import { api } from "../../services/api";
 
 export function EmployeeEarnings() {
-  const { currentEmployee, ledger, showToast } = useWorkforce();
+  const {
+    currentEmployee,
+    ledger,
+    cashoutRequests,
+    setCashoutRequests,
+    refreshCashoutRequests,
+    showToast,
+    authToken,
+  } = useWorkforce();
   const [showCashoutRequest, setShowCashoutRequest] = useState(false);
   const [cashoutAmount, setCashoutAmount] = useState("");
   const [cashoutMethod, setCashoutMethod] = useState("bKash");
   const [cashoutAccount, setCashoutAccount] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const userEmail = (currentEmployee?.email || "").toLowerCase().trim();
   const userName = (currentEmployee?.name || "").toLowerCase().trim();
@@ -28,7 +38,20 @@ export function EmployeeEarnings() {
 
   const balance = totalCredits - totalDebits;
 
-  const handleRequestCashout = (e: React.FormEvent) => {
+  // Filter requests belonging to this employee
+  const myRequests = cashoutRequests.filter((r) => {
+    const rEmail = (r.employeeEmail || "").toLowerCase().trim();
+    const rName = (r.employeeName || "").toLowerCase().trim();
+    return (userEmail && rEmail === userEmail) || (userName && rName === userName);
+  });
+
+  const pendingCashoutTotal = myRequests
+    .filter((r) => r.status === "Pending")
+    .reduce((sum, r) => sum + r.amount, 0);
+
+  const withdrawableBalance = Math.max(0, balance - pendingCashoutTotal);
+
+  const handleRequestCashout = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = Number(cashoutAmount);
     if (!amount || amount <= 0 || !Number.isInteger(amount)) {
@@ -36,11 +59,11 @@ export function EmployeeEarnings() {
       return;
     }
 
-    if (amount > balance) {
+    if (amount > withdrawableBalance) {
       showToast(
-        `Requested amount exceeds your available balance of ৳${balance.toLocaleString(
+        `Requested amount exceeds your withdrawable balance of ৳${withdrawableBalance.toLocaleString(
           "en-BD"
-        )}.`,
+        )} (৳${pendingCashoutTotal.toLocaleString("en-BD")} is currently pending admin review).`,
         "warning"
       );
       return;
@@ -51,15 +74,38 @@ export function EmployeeEarnings() {
       return;
     }
 
-    setShowCashoutRequest(false);
-    setCashoutAmount("");
-    setCashoutAccount("");
-    showToast(
-      `Cashout request for ৳${amount.toLocaleString(
-        "en-BD"
-      )} via ${cashoutMethod} submitted to Admin!`,
-      "success"
-    );
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        employeeName: currentEmployee?.name || "Staff Member",
+        employeeEmail: currentEmployee?.email || userEmail,
+        amount,
+        method: cashoutMethod,
+        accountNumber: cashoutAccount.trim(),
+      };
+
+      const res = await api.payments.requestCashout(payload, authToken || undefined);
+
+      if (res?.success && res.request) {
+        setCashoutRequests((prev) => [res.request, ...prev]);
+        setShowCashoutRequest(false);
+        setCashoutAmount("");
+        setCashoutAccount("");
+        showToast(
+          `Cashout request for ৳${amount.toLocaleString(
+            "en-BD"
+          )} via ${cashoutMethod} submitted to Admin!`,
+          "success"
+        );
+        refreshCashoutRequests().catch(() => {});
+      } else {
+        throw new Error(res?.error || "Failed to submit cashout request");
+      }
+    } catch (error: any) {
+      showToast(error.message || "Failed to submit cashout request to Admin.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -73,7 +119,14 @@ export function EmployeeEarnings() {
           <p className="mt-2 text-3xl font-extrabold text-emerald-600">
             ৳{balance.toLocaleString("en-BD")}
           </p>
-          <p className="mt-1 text-xs text-slate-400">Ready for cashout</p>
+          <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
+            <span>Ready for cashout: ৳{withdrawableBalance.toLocaleString("en-BD")}</span>
+            {pendingCashoutTotal > 0 && (
+              <span className="font-semibold text-amber-600">
+                (৳{pendingCashoutTotal.toLocaleString("en-BD")} pending)
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -110,7 +163,7 @@ export function EmployeeEarnings() {
 
         <button
           onClick={() => setShowCashoutRequest(true)}
-          disabled={balance <= 0}
+          disabled={withdrawableBalance <= 0}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           Request Cashout
@@ -121,7 +174,12 @@ export function EmployeeEarnings() {
       {showCashoutRequest && (
         <div className="rounded-xl border border-emerald-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h4 className="font-bold text-slate-900">Request Cashout</h4>
+            <div>
+              <h4 className="font-bold text-slate-900">Request Cashout</h4>
+              <p className="text-xs text-slate-500">
+                Withdrawable limit: ৳{withdrawableBalance.toLocaleString("en-BD")}
+              </p>
+            </div>
             <button
               onClick={() => setShowCashoutRequest(false)}
               className="text-slate-400 hover:text-slate-600"
@@ -140,11 +198,11 @@ export function EmployeeEarnings() {
               </label>
               <input
                 type="number"
-                min="100"
-                max={balance}
+                min="50"
+                max={withdrawableBalance}
                 value={cashoutAmount}
                 onChange={(e) => setCashoutAmount(e.target.value)}
-                placeholder={`Max ৳${balance}`}
+                placeholder={`Max ৳${withdrawableBalance}`}
                 className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-xs outline-none focus:border-emerald-500"
                 required
               />
@@ -189,14 +247,96 @@ export function EmployeeEarnings() {
               </button>
               <button
                 type="submit"
-                className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                disabled={isSubmitting}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
               >
-                Send Cashout Request
+                <Send size={13} />
+                {isSubmitting ? "Submitting..." : "Send Cashout Request"}
               </button>
             </div>
           </form>
         </div>
       )}
+
+      {/* Cashout Requests Queue & History */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-slate-200 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-slate-900">
+                My Cashout Requests
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Track status of your withdrawal requests submitted to Admin.
+              </p>
+            </div>
+            {pendingCashoutTotal > 0 && (
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200 flex items-center gap-1">
+                <Clock size={12} />
+                ৳{pendingCashoutTotal.toLocaleString("en-BD")} Pending
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {myRequests.map((req) => (
+            <div key={req.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-slate-800">{req.id}</span>
+                  {req.status === "Pending" && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 border border-amber-200">
+                      <Clock size={11} />
+                      Pending Admin Review
+                    </span>
+                  )}
+                  {req.status === "Paid" && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+                      <CheckCircle2 size={11} />
+                      Paid & Disbursed
+                    </span>
+                  )}
+                  {req.status === "Rejected" && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 border border-rose-200">
+                      <XCircle size={11} />
+                      Rejected
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600">
+                  <span className="font-semibold text-slate-800">{req.method}</span> • {req.accountNumber} • Requested on {req.requestedDate}
+                </p>
+                {req.status === "Paid" && req.transactionRef && (
+                  <p className="text-[11px] font-mono text-emerald-700 bg-emerald-50/70 rounded px-2 py-0.5 w-fit">
+                    TrxID / Ref: {req.transactionRef} {req.processedDate ? `(${req.processedDate})` : ""}
+                  </p>
+                )}
+                {req.status === "Rejected" && req.adminNote && (
+                  <p className="text-[11px] text-rose-600 bg-rose-50/70 rounded px-2 py-0.5 w-fit">
+                    Admin Note: {req.adminNote}
+                  </p>
+                )}
+              </div>
+
+              <div className="text-left sm:text-right">
+                <p className="text-lg font-extrabold text-slate-900">
+                  ৳{req.amount.toLocaleString("en-BD")}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  {req.status === "Pending" ? "Processing payout" : req.status === "Paid" ? "Credited to wallet" : "Returned to balance"}
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {myRequests.length === 0 && (
+            <div className="py-8 text-center text-xs text-slate-400">
+              No cashout requests submitted yet.
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Personal Ledger History Table */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">

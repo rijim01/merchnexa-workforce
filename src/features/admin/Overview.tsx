@@ -16,12 +16,13 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { useWorkforce } from "../../context/WorkforceContext";
 
 export function Overview() {
-  const { setActive, employeeList, taskList, submissions, ledger } = useWorkforce();
+  const { setActive, employeeList, taskList, submissions, ledger, cashoutRequests } = useWorkforce();
 
   // Dynamic live calculations
   const activeEmployeesCount = employeeList.filter((e) => e.status === "Active").length;
   const totalTasksCount = taskList.length;
   const pendingReviewsCount = submissions.filter((s) => s.status === "Under Review").length;
+  const pendingCashouts = cashoutRequests.filter((r) => r.status === "Pending");
   const totalPayouts = ledger
     .filter((l) => l.type === "DEBIT")
     .reduce((sum, l) => sum + l.amount, 0);
@@ -99,6 +100,31 @@ export function Overview() {
           color="bg-emerald-50 text-emerald-600"
         />
       </div>
+
+      {/* Pending Cashouts Alert */}
+      {pendingCashouts.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500 text-white font-bold">
+              <Clock size={20} />
+            </span>
+            <div>
+              <p className="font-bold text-sm">
+                {pendingCashouts.length} Staff Cashout Request{pendingCashouts.length > 1 ? "s" : ""} Awaiting Review!
+              </p>
+              <p className="text-xs text-amber-700">
+                Total ৳{pendingCashouts.reduce((sum, r) => sum + r.amount, 0).toLocaleString("en-BD")} requested by workers via bKash / Nagad.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActive("Payments")}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-amber-700 sm:w-auto"
+          >
+            Review & Disburse <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Executive Financial & Profit Summary */}
       <div className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-4 sm:p-6 text-white shadow-md">

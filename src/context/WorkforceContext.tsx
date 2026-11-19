@@ -7,6 +7,7 @@ import type {
   AssignmentItem,
   SubmissionItem,
   TransactionItem,
+  CashoutRequestItem,
 } from "../types";
 import {
   employees as defaultEmployees,
@@ -69,6 +70,9 @@ interface WorkforceContextType {
   setSubmissions: React.Dispatch<React.SetStateAction<SubmissionItem[]>>;
   ledger: TransactionItem[];
   setLedger: React.Dispatch<React.SetStateAction<TransactionItem[]>>;
+  cashoutRequests: CashoutRequestItem[];
+  setCashoutRequests: React.Dispatch<React.SetStateAction<CashoutRequestItem[]>>;
+  refreshCashoutRequests: () => Promise<void>;
 }
 
 const WorkforceContext = createContext<WorkforceContextType | undefined>(undefined);
@@ -111,6 +115,18 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
   const [assignments, setAssignments] = useState<AssignmentItem[]>(initialAssignments);
   const [submissions, setSubmissions] = useState<SubmissionItem[]>(initialSubmissions);
   const [ledger, setLedger] = useState<TransactionItem[]>(initialTransactions);
+  const [cashoutRequests, setCashoutRequests] = useState<CashoutRequestItem[]>([]);
+
+  const refreshCashoutRequests = async () => {
+    try {
+      const res = await api.payments.listCashoutRequests(authToken || undefined);
+      if (res?.success && Array.isArray(res?.requests)) {
+        setCashoutRequests(res.requests);
+      }
+    } catch (e) {
+      console.warn("Failed to refresh cashout requests:", e);
+    }
+  };
 
   // Custom Toast state
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -201,13 +217,14 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadBackendData() {
       try {
-        const [taskData, appData, empData, assignData, subData, ledgerData] = await Promise.allSettled([
+        const [taskData, appData, empData, assignData, subData, ledgerData, cashoutData] = await Promise.allSettled([
           api.tasks.list(authToken || undefined),
           api.applications.list(authToken || undefined),
           api.employees.list(authToken || undefined),
           api.assignments.list(authToken || undefined),
           api.submissions.list(authToken || undefined),
           api.payments.getLedger(authToken || undefined),
+          api.payments.listCashoutRequests(authToken || undefined),
         ]);
 
         if (taskData.status === "fulfilled" && Array.isArray(taskData.value?.tasks)) {
@@ -227,6 +244,9 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
         }
         if (ledgerData.status === "fulfilled" && Array.isArray(ledgerData.value?.ledger)) {
           setLedger(ledgerData.value.ledger);
+        }
+        if (cashoutData.status === "fulfilled" && Array.isArray(cashoutData.value?.requests)) {
+          setCashoutRequests(cashoutData.value.requests);
         }
       } catch {
         // Local mode fallback
@@ -355,6 +375,9 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
         setSubmissions,
         ledger,
         setLedger,
+        cashoutRequests,
+        setCashoutRequests,
+        refreshCashoutRequests,
         toasts,
         showToast,
         dismissToast,
