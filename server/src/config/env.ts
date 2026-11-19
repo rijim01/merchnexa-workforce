@@ -4,6 +4,21 @@ import path from "path";
 dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
 dotenv.config();
 
+function formatPrivateKey(key?: string): string {
+  if (!key) return "";
+  let formatted = key.trim();
+  // Strip surrounding quotes if copied with quotes
+  if (
+    (formatted.startsWith('"') && formatted.endsWith('"')) ||
+    (formatted.startsWith("'") && formatted.endsWith("'"))
+  ) {
+    formatted = formatted.slice(1, -1);
+  }
+  // Replace escaped newlines with real newlines and remove any carriage returns
+  formatted = formatted.replace(/\\n/g, "\n").replace(/\\r/g, "");
+  return formatted.trim();
+}
+
 export const config = {
   port: process.env.PORT || 5000,
   adminEmail: (process.env.ADMIN_EMAIL || "jim@merchnexa.com").toLowerCase(),
@@ -11,7 +26,7 @@ export const config = {
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID || "",
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "",
-    privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+    privateKey: formatPrivateKey(process.env.FIREBASE_PRIVATE_KEY),
   },
   google: {
     projectId: process.env.GOOGLE_PROJECT_ID || "merchnexa-workhub",
@@ -21,6 +36,6 @@ export const config = {
     spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || "",
     driveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID || "",
     clientEmail: process.env.GOOGLE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL || "",
-    privateKey: (process.env.GOOGLE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+    privateKey: formatPrivateKey(process.env.GOOGLE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY),
   },
 };
