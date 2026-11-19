@@ -9,6 +9,10 @@ export const paymentRouter = Router();
 // Get financial ledger transactions
 paymentRouter.get("/ledger", authMiddleware, async (req, res) => {
   try {
+    const txns = await ledgerService.getLedger();
+    if (txns && txns.length > 0) {
+      return res.json({ success: true, ledger: txns });
+    }
     const rows = await sheetsRepo.readRows("Transactions");
     res.json({ success: true, data: rows });
   } catch (error: any) {

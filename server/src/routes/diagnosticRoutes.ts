@@ -1,15 +1,33 @@
 import { Router, Request, Response } from "express";
 import admin from "firebase-admin";
+import mongoose from "mongoose";
 import { google } from "googleapis";
 import { config } from "../config/env.js";
 import { getFirebaseAdmin } from "../config/firebase.js";
 import { getSheetsClient } from "../config/sheets.js";
+import { connectDB, isDbConnected } from "../config/db.js";
+import { EmployeeModel } from "../models/Employee.js";
+import { TaskModel } from "../models/Task.js";
+import { SubmissionModel } from "../models/Submission.js";
+import { TransactionModel } from "../models/Transaction.js";
 
 export const diagnosticRouter = Router();
 
 diagnosticRouter.get("/test-connections", async (req: Request, res: Response) => {
   const results: {
     timestamp: string;
+    mongoAtlas: {
+      status: "CONNECTED" | "ERROR" | "NOT_CONFIGURED";
+      host?: string;
+      database?: string;
+      collections?: {
+        employees: number;
+        tasks: number;
+        submissions: number;
+        transactions: number;
+      };
+      error?: string;
+    };
     firebase: {
       status: "CONNECTED" | "ERROR" | "NOT_CONFIGURED";
       projectId?: string;
@@ -28,11 +46,54 @@ diagnosticRouter.get("/test-connections", async (req: Request, res: Response) =>
     };
   } = {
     timestamp: new Date().toISOString(),
+    mongoAtlas: { status: "NOT_CONFIGURED" },
     firebase: { status: "NOT_CONFIGURED" },
     googleSheets: { status: "NOT_CONFIGURED" },
   };
 
-  // 1. Test Firebase Admin SDK Connection
+  // 1. Test MongoDB Atlas Connection
+  try {
+    if (!config.mongoUri) {
+      results.mongoAtlas = {
+        status: "NOT_CONFIGURED",
+        error: "MONGODB_URI is not set in .env or Render environment variables.",
+      };
+    } else {
+      const connected = await connectDB();
+      if (connected) {
+        const [empCount, taskCount, subCount, txnCount] = await Promise.all([
+          EmployeeModel.countDocuments().catch(() => 0),
+          TaskModel.countDocuments().catch(() => 0),
+          SubmissionModel.countDocuments().catch(() => 0),
+          TransactionModel.countDocuments().catch(() => 0),
+        ]);
+
+        results.mongoAtlas = {
+          status: "CONNECTED",
+          host: mongoose.connection.host || "MongoDB Atlas Cluster",
+          database: mongoose.connection.name || "merchnexa",
+          collections: {
+            employees: empCount,
+            tasks: taskCount,
+            submissions: subCount,
+            transactions: txnCount,
+          },
+        };
+      } else {
+        results.mongoAtlas = {
+          status: "ERROR",
+          error: "Could not connect to MongoDB Atlas. Please check IP Whitelist (0.0.0.0/0) and credentials.",
+        };
+      }
+    }
+  } catch (mErr: any) {
+    results.mongoAtlas = {
+      status: "ERROR",
+      error: mErr.message || "Failed to communicate with MongoDB Atlas",
+    };
+  }
+
+  // 2. Test Firebase Admin SDK Connection
   try {
     const fbApp = getFirebaseAdmin();
     if (!fbApp) {
@@ -58,7 +119,7 @@ diagnosticRouter.get("/test-connections", async (req: Request, res: Response) =>
     };
   }
 
-  // 2. Test Google Sheets Connection
+  // 3. Test Google Sheets Connection (as optional mirror)
   try {
     const sheets = getSheetsClient();
     if (!sheets || !config.google.spreadsheetId) {
@@ -67,7 +128,6 @@ diagnosticRouter.get("/test-connections", async (req: Request, res: Response) =>
         error: "Google Sheets credentials or GOOGLE_SPREADSHEET_ID missing in .env",
       };
     } else {
-      // Read spreadsheet metadata
       const meta = await sheets.spreadsheets.get({
         spreadsheetId: config.google.spreadsheetId,
       });
@@ -77,77 +137,30 @@ diagnosticRouter.get("/test-connections", async (req: Request, res: Response) =>
         .map((s) => s.properties?.title)
         .filter(Boolean) as string[];
 
-      const expectedTabs = [
-        "Employees",
-        "Tasks",
-        "Transactions",
-        "Submissions",
-        "Applications",
-        "AuditLogs",
-      ];
-      const missingTabs = expectedTabs.filter((t) => !tabsFound.includes(t));
-
-      // Attempt write test to AuditLogs (if present) or first available tab
-      let writeTest: "SUCCESS" | "FAILED" = "FAILED";
-      const targetTab = tabsFound.includes("AuditLogs") ? "AuditLogs" : tabsFound[0];
-
-      if (targetTab) {
-        try {
-          await sheets.spreadsheets.values.append({
-            spreadsheetId: config.google.spreadsheetId,
-            range: `${targetTab}!A:D`,
-            valueInputOption: "USER_ENTERED",
-            requestBody: {
-              values: [
-                [
-                  new Date().toISOString(),
-                  "SYSTEM_DIAGNOSTIC",
-                  "PING_TEST",
-                  "Verified Firebase & Sheets live connectivity",
-                ],
-              ],
-            },
-          });
-          writeTest = "SUCCESS";
-        } catch (wErr: any) {
-          console.error("Sheets write test failed:", wErr);
-        }
-      }
-
       results.googleSheets = {
         status: "CONNECTED",
         spreadsheetId: config.google.spreadsheetId,
         spreadsheetTitle: title,
         tabsFound,
-        missingTabs: missingTabs.length > 0 ? missingTabs : undefined,
-        writeTest,
       };
     }
   } catch (err: any) {
-    console.error("Google Sheets Diagnostic Error:", err);
-    let errMsg = err.message || "Failed to communicate with Google Sheets";
-    if (err.code === 403 || errMsg.includes("permission")) {
-      errMsg = `Permission Denied: Please share your Google Sheet with '${config.google.clientEmail}' as an Editor.`;
-    } else if (err.code === 404 || errMsg.includes("not found")) {
-      errMsg = `Spreadsheet Not Found: Please verify GOOGLE_SPREADSHEET_ID in .env.`;
-    }
     results.googleSheets = {
       status: "ERROR",
       spreadsheetId: config.google.spreadsheetId,
-      error: errMsg,
+      error: err.message || "Google Sheets mirror unavailable",
     };
   }
 
-  const allPassed =
-    results.firebase.status === "CONNECTED" &&
-    results.googleSheets.status === "CONNECTED" &&
-    results.googleSheets.writeTest === "SUCCESS";
+  const dbOk = results.mongoAtlas.status === "CONNECTED";
+  const fbOk = results.firebase.status === "CONNECTED";
 
-  res.status(allPassed ? 200 : 207).json({
-    success: allPassed,
-    summary: allPassed
-      ? "✓ Both Firebase Authentication and Google Sheets are 100% operational!"
-      : "⚠ One or more cloud services reported an issue. See details below.",
+  res.status(dbOk && fbOk ? 200 : 207).json({
+    success: dbOk && fbOk,
+    summary:
+      dbOk && fbOk
+        ? "✓ MongoDB Atlas and Firebase Authentication are 100% operational!"
+        : "⚠ Please check the service statuses below.",
     results,
   });
 });

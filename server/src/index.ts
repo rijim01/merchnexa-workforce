@@ -12,6 +12,7 @@ import { submissionRouter } from "./routes/submissionRoutes.js";
 import { diagnosticRouter } from "./routes/diagnosticRoutes.js";
 import { getFirebaseAdmin } from "./config/firebase.js";
 import { getSheetsClient } from "./config/sheets.js";
+import { connectDB, isDbConnected } from "./config/db.js";
 
 const app = express();
 
@@ -21,12 +22,14 @@ app.use(express.json());
 // Initialize services
 getFirebaseAdmin();
 getSheetsClient();
+connectDB();
 
 // Health check
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
     service: "MerchNexa WorkHub Backend API",
+    database: isDbConnected() ? "connected (MongoDB Atlas)" : "local / disconnected",
     time: new Date().toISOString(),
   });
 });

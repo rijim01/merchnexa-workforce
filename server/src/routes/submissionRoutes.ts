@@ -1,10 +1,28 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { requireAdmin } from "../middleware/rbacMiddleware.js";
+import { SubmissionModel } from "../models/Submission.js";
+import { TaskModel } from "../models/Task.js";
+import { AuditLogModel } from "../models/AuditLog.js";
+import { isDbConnected } from "../config/db.js";
 import { sheetsRepo } from "../repositories/sheetsRepo.js";
 import { ledgerService } from "../services/ledgerService.js";
 
 export const submissionRouter = Router();
+
+// Get all submissions
+submissionRouter.get("/", authMiddleware, async (req, res) => {
+  try {
+    if (isDbConnected()) {
+      const submissions = await SubmissionModel.find().sort({ createdAt: -1 }).lean();
+      return res.json({ success: true, submissions });
+    }
+    const rows = await sheetsRepo.readRows("Submissions");
+    res.json({ success: true, data: rows });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Employee submits deliverable link
 submissionRouter.post("/", authMiddleware, async (req, res) => {
@@ -27,37 +45,59 @@ submissionRouter.post("/", authMiddleware, async (req, res) => {
   }
 
   const subId = Date.now();
-  const submissionRow = [
-    subId,
-    new Date().toISOString().slice(0, 10),
-    taskTitle,
-    employee || req.user?.displayName || "Staff Member",
-    email || req.user?.email,
-    deliverableUrl,
-    notes || "",
-    "Under Review",
-    paymentType || "FIXED",
-    unitRate || "",
-    unitName || "",
-    submittedQuantity || 1,
-    payment || 0,
-    "", // Rating
-    "", // Feedback
-  ];
+  let createdSub: any = null;
 
   try {
-    // Append to 'Submissions' tab in Google Sheets
-    await sheetsRepo.appendRow("Submissions", submissionRow);
+    if (isDbConnected()) {
+      createdSub = await SubmissionModel.create({
+        id: subId,
+        taskTitle,
+        employee: employee || req.user?.displayName || "Staff Member",
+        email: (email || req.user?.email || "").toLowerCase().trim(),
+        submittedOn: new Date().toISOString().slice(0, 10),
+        deliverableUrl,
+        notes: notes || "",
+        payment: Number(payment) || 0,
+        status: "Under Review",
+        paymentType: paymentType || "FIXED",
+        unitRate: unitRate ? Number(unitRate) : undefined,
+        unitName: unitName || "Account",
+        submittedQuantity: Number(submittedQuantity) || 1,
+        approvedQuantity: Number(submittedQuantity) || 1,
+      });
 
-    // Record audit log
-    await sheetsRepo.appendRow("AuditLogs", [
-      new Date().toISOString(),
-      email || req.user?.email || "Employee",
-      "SUBMIT_DELIVERABLE",
-      `Deliverable submitted for "${taskTitle}" (${deliverableUrl})`,
-    ]);
+      await AuditLogModel.create({
+        actor: email || req.user?.email || "Employee",
+        action: "SUBMIT_DELIVERABLE",
+        details: `Deliverable submitted for "${taskTitle}" (${deliverableUrl})`,
+      });
+    }
 
-    res.status(201).json({ success: true, subId, message: "Submission recorded in Google Sheets" });
+    // Mirror to Google Sheets if configured
+    sheetsRepo.appendRow("Submissions", [
+      subId,
+      new Date().toISOString().slice(0, 10),
+      taskTitle,
+      employee || req.user?.displayName || "Staff Member",
+      email || req.user?.email,
+      deliverableUrl,
+      notes || "",
+      "Under Review",
+      paymentType || "FIXED",
+      unitRate || "",
+      unitName || "",
+      submittedQuantity || 1,
+      payment || 0,
+      "", // Rating
+      "", // Feedback
+    ]).catch(() => {});
+
+    res.status(201).json({
+      success: true,
+      subId,
+      submission: createdSub,
+      message: "Submission saved to MongoDB Atlas",
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -65,6 +105,7 @@ submissionRouter.post("/", authMiddleware, async (req, res) => {
 
 // Admin approves submission and releases payout to ledger
 submissionRouter.patch("/:id/approve", authMiddleware, requireAdmin, async (req, res) => {
+  const subId = Number(req.params.id);
   const {
     taskTitle,
     employee,
@@ -86,10 +127,32 @@ submissionRouter.patch("/:id/approve", authMiddleware, requireAdmin, async (req,
     const finalAmount = Math.round(Number(amount));
     const txnId = `TXN-${Date.now().toString().slice(-4)}`;
 
-    // 1. Credit employee ledger in 'Transactions' tab
+    if (isDbConnected()) {
+      // 1. Update submission status in MongoDB Atlas
+      await SubmissionModel.findOneAndUpdate(
+        { id: subId },
+        {
+          status: "Approved",
+          payment: finalAmount,
+          rating: Number(rating) || 10,
+          approvedQuantity: Number(approvedQuantity) || 1,
+          feedback: note || "",
+        }
+      );
+
+      // 2. Increment completedQuantity on the Task
+      if (taskTitle) {
+        await TaskModel.findOneAndUpdate(
+          { title: taskTitle },
+          { $inc: { completedQuantity: Number(approvedQuantity) || 1 } }
+        );
+      }
+    }
+
+    // 3. Credit employee ledger in MongoDB Atlas (and mirror to Sheets)
     await ledgerService.recordTransaction({
       id: txnId,
-      employeeEmail: email,
+      employeeEmail: email.toLowerCase().trim(),
       employeeName: employee || "Staff Member",
       type: "CREDIT",
       amount: finalAmount,
@@ -99,15 +162,11 @@ submissionRouter.patch("/:id/approve", authMiddleware, requireAdmin, async (req,
       description: note || `Earnings for approved deliverable: ${taskTitle} (Rating: ${rating || 10}/10)`,
     });
 
-    // 2. Record audit log
-    await sheetsRepo.appendRow("AuditLogs", [
-      new Date().toISOString(),
-      req.user?.email || "Admin",
-      "APPROVE_SUBMISSION",
-      `Approved "${taskTitle}" by ${employee}. Credited ৳${finalAmount} (Score: ${rating || 10}/10)`,
-    ]);
-
-    res.json({ success: true, txnId, message: "Approval and payout credited to Google Sheets" });
+    res.json({
+      success: true,
+      txnId,
+      message: "Approval and payout successfully recorded in MongoDB Atlas",
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

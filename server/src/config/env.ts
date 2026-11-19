@@ -7,6 +7,7 @@ dotenv.config();
 export const config = {
   port: process.env.PORT || 5000,
   adminEmail: (process.env.ADMIN_EMAIL || "jim@merchnexa.com").toLowerCase(),
+  mongoUri: process.env.MONGODB_URI || "",
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID || "",
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "",
