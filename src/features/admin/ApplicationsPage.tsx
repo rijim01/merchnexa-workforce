@@ -106,10 +106,12 @@ export function ApplicationsPage() {
           const updatedList = currentList.includes(application.employee)
             ? currentList
             : [...currentList, application.employee];
+          const totalSlots = t.slots || 1;
+          const newStatus = updatedList.length >= totalSlots ? "In Progress" : "Open";
 
           return {
             ...t,
-            status: "In Progress",
+            status: newStatus,
             employee:
               updatedList.length === 1
                 ? updatedList[0]

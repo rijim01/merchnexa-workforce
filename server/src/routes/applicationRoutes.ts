@@ -155,7 +155,8 @@ applicationRouter.patch("/:id/status", authMiddleware, requireAdmin, async (req:
 
           task.assignedEmployees = currentAssigned;
           task.assignedEmployeeEmails = currentEmails;
-          task.status = "In Progress";
+          const totalSlots = task.slots || 1;
+          task.status = currentAssigned.length >= totalSlots ? "In Progress" : "Open";
           task.employee = currentAssigned.length === 1
             ? currentAssigned[0]
             : `${currentAssigned[0]} (+${currentAssigned.length - 1} more)`;
