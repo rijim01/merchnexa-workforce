@@ -67,12 +67,15 @@ export async function authMiddleware(
   try {
     const decodedToken = await auth.verifyIdToken(idToken);
     
-    const email = (decodedToken.email || "").toLowerCase();
+    const email = (decodedToken.email || "").toLowerCase().trim();
+    const adminEmails = [
+      config.adminEmail.toLowerCase().trim(),
+      "jim.sec14@gmail.com",
+      "jim@merchnexa.com",
+    ];
     const isAdmin =
       (decodedToken as any).role === "ADMIN" ||
-      email === config.adminEmail.toLowerCase() ||
-      email.includes("admin") ||
-      email.startsWith("jim");
+      adminEmails.includes(email);
 
     // Attach authoritative identity to request
     const tokenObj = decodedToken as any;

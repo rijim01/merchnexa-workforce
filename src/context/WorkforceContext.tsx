@@ -80,15 +80,33 @@ const WorkforceContext = createContext<WorkforceContextType | undefined>(undefin
 export function WorkforceProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<Role>(() => {
     try {
-      const saved = localStorage.getItem("merchnexa_auth_role");
-      return (saved as Role) || "ADMIN";
+      const savedUser = localStorage.getItem("merchnexa_auth_user");
+      const userObj = savedUser ? JSON.parse(savedUser) : null;
+      const userEmail = (userObj?.email || "").toLowerCase().trim();
+      const adminEmails = [
+        (import.meta.env.VITE_ADMIN_EMAIL || "jim.sec14@gmail.com").toLowerCase().trim(),
+        "jim.sec14@gmail.com",
+        "jim@merchnexa.com",
+      ];
+      return userEmail && adminEmails.includes(userEmail) ? "ADMIN" : "EMPLOYEE";
     } catch {
-      return "ADMIN";
+      return "EMPLOYEE";
     }
   });
   const [active, setActive] = useState<string>(() => {
-    const saved = localStorage.getItem("merchnexa_auth_role");
-    return saved === "EMPLOYEE" ? "My Dashboard" : "Overview";
+    try {
+      const savedUser = localStorage.getItem("merchnexa_auth_user");
+      const userObj = savedUser ? JSON.parse(savedUser) : null;
+      const userEmail = (userObj?.email || "").toLowerCase().trim();
+      const adminEmails = [
+        (import.meta.env.VITE_ADMIN_EMAIL || "jim.sec14@gmail.com").toLowerCase().trim(),
+        "jim.sec14@gmail.com",
+        "jim@merchnexa.com",
+      ];
+      return userEmail && adminEmails.includes(userEmail) ? "Overview" : "My Dashboard";
+    } catch {
+      return "My Dashboard";
+    }
   });
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -153,13 +171,15 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
           setAuthToken(token);
           setLoginModalOpen(false);
 
-          // Check if admin or employee
-          const configuredAdmin = (import.meta.env.VITE_ADMIN_EMAIL || "jim@merchnexa.com").toLowerCase();
-          const userEmail = (user.email || "").toLowerCase();
-          const isAdmin =
-            userEmail === configuredAdmin ||
-            userEmail.includes("admin") ||
-            userEmail.startsWith("jim");
+          // Check if admin or employee (Strict email check)
+          const configuredAdmin = (import.meta.env.VITE_ADMIN_EMAIL || "jim.sec14@gmail.com").toLowerCase().trim();
+          const adminEmails = [
+            configuredAdmin,
+            "jim.sec14@gmail.com",
+            "jim@merchnexa.com",
+          ];
+          const userEmail = (user.email || "").toLowerCase().trim();
+          const isAdmin = adminEmails.includes(userEmail);
 
           const assignedRole = isAdmin ? "ADMIN" : "EMPLOYEE";
           setRole(assignedRole);
@@ -256,11 +276,16 @@ export function WorkforceProvider({ children }: { children: React.ReactNode }) {
   }, [authToken]);
 
   const handleEmailLogin = async (email: string, pass: string) => {
-    const configuredAdmin = (import.meta.env.VITE_ADMIN_EMAIL || "jim@merchnexa.com").toLowerCase();
+    const configuredAdmin = (import.meta.env.VITE_ADMIN_EMAIL || "jim.sec14@gmail.com").toLowerCase().trim();
     const cleanEmail = email.toLowerCase().trim();
+    const adminEmails = [
+      configuredAdmin,
+      "jim.sec14@gmail.com",
+      "jim@merchnexa.com",
+    ];
 
     // If mock / offline fallback credentials used without live backend user
-    if ((cleanEmail === configuredAdmin || cleanEmail === "jim@merchnexa.com" || cleanEmail.startsWith("jim")) && pass === "Admin123!") {
+    if (adminEmails.includes(cleanEmail) && pass === "Admin123!") {
       const mockAdmin = {
         email: cleanEmail,
         displayName: "Jim",
